@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { Upload, FileText, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -94,7 +93,13 @@ const FileUpload = ({ onFileUpload }) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
-          const data = new Uint8Array(e.target.result);
+          const result = e.target?.result;
+          if (!result || typeof result === 'string') {
+            reject(new Error('檔案讀取失敗'));
+            return;
+          }
+          
+          const data = new Uint8Array(result as ArrayBuffer);
           const workbook = window.XLSX.read(data, { type: 'array', cellDates: true });
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
