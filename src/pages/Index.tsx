@@ -225,7 +225,7 @@ const Index = () => {
               <Textarea
                 value={prompt}
                 onChange={handlePromptChange}
-                placeholder="例如：我想看各個地區的銷售額比較，用長條圖，然後把台北的標成紅色"
+                placeholder="請幫我畫出堆疊柱狀圖，X軸是Date、但不要顯示title text，Y軸分別使用A、B、C，顏色依序使用#84C3E0 , #30617D, #D97871，Y軸 title 的text = 金額 (億元)，Title = 中國-歷年財政預算赤字總額，Legend放在最下面、不要有border"
                 className="min-h-[150px]"
               />
             </CardContent>
@@ -290,6 +290,7 @@ const Index = () => {
               <ChartDisplay 
                 chartOptions={chartOptions} 
                 isLoading={isLoading}
+                setChartOptions={setChartOptions}
               />
             </div>
 

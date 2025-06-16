@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -88,59 +87,59 @@ const SettingsPanel = ({ chartOptions, onOptionsChange }) => {
           <CardHeader>
             <CardTitle>數據系列設定</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {chartOptions.series?.map((series, index) => (
-              <Card key={index} className="p-4 bg-gray-50">
-                <div className="space-y-3">
-                  <h4 className="font-semibold">系列 {index + 1}</h4>
-                  
-                  {/* 系列名稱 */}
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {chartOptions.series?.map((series, index) => (
+                <Card key={index} className="p-3 bg-gray-50 border border-gray-200">
                   <div className="space-y-2">
-                    <Label htmlFor={`series-name-${index}`}>名稱</Label>
-                    <Input
-                      id={`series-name-${index}`}
-                      value={series.name || ''}
-                      onChange={(e) => updateSeriesOptions(index, 'name', e.target.value)}
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                    {/* 系列顏色 */}
-                    <div className="space-y-2">
-                      <Label htmlFor={`series-color-${index}`}>顏色</Label>
-                      <input
-                        id={`series-color-${index}`}
-                        type="color"
-                        value={series.color || '#3b82f6'}
-                        onChange={(e) => updateSeriesOptions(index, 'color', e.target.value)}
-                        className="w-12 h-8 rounded cursor-pointer border border-gray-300"
+                    <div className="font-semibold text-base mb-1">系列 {index + 1}：{series.name || '未命名'}</div>
+                    {/* 系列名稱 */}
+                    <div>
+                      <Label htmlFor={`series-name-${index}`}>名稱</Label>
+                      <Input
+                        id={`series-name-${index}`}
+                        value={series.name || ''}
+                        onChange={(e) => updateSeriesOptions(index, 'name', e.target.value)}
+                        className="h-8 text-sm"
                       />
                     </div>
-
-                    {/* 圖表類型 */}
-                    <div className="flex-1 space-y-2">
-                      <Label htmlFor={`series-type-${index}`}>類型</Label>
-                      <Select
-                        value={series.type || 'column'}
-                        onValueChange={(value) => updateSeriesOptions(index, 'type', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="line">折線圖</SelectItem>
-                          <SelectItem value="spline">平滑折線圖</SelectItem>
-                          <SelectItem value="column">長條圖</SelectItem>
-                          <SelectItem value="bar">橫條圖</SelectItem>
-                          <SelectItem value="area">面積圖</SelectItem>
-                          <SelectItem value="pie">圓餅圖</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="flex items-center gap-2 mt-1">
+                      {/* 系列顏色 */}
+                      <div>
+                        <Label htmlFor={`series-color-${index}`}>顏色</Label>
+                        <input
+                          id={`series-color-${index}`}
+                          type="color"
+                          value={series.color || '#3b82f6'}
+                          onChange={(e) => updateSeriesOptions(index, 'color', e.target.value)}
+                          className="w-8 h-8 rounded cursor-pointer border border-gray-300"
+                        />
+                      </div>
+                      {/* 圖表類型 */}
+                      <div className="flex-1">
+                        <Label htmlFor={`series-type-${index}`}>類型</Label>
+                        <Select
+                          value={series.type || 'column'}
+                          onValueChange={(value) => updateSeriesOptions(index, 'type', value)}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="line">折線圖</SelectItem>
+                            <SelectItem value="spline">平滑折線圖</SelectItem>
+                            <SelectItem value="column">長條圖</SelectItem>
+                            <SelectItem value="bar">橫條圖</SelectItem>
+                            <SelectItem value="area">面積圖</SelectItem>
+                            <SelectItem value="pie">圓餅圖</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>

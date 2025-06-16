@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from 'react';
 import { BarChart3 } from 'lucide-react';
 
@@ -8,7 +7,7 @@ declare global {
   }
 }
 
-const ChartDisplay = ({ chartOptions, isLoading }) => {
+const ChartDisplay = ({ chartOptions, isLoading, setChartOptions }) => {
   const chartRef = useRef(null);
   const chartInstanceRef = useRef(null);
 
@@ -23,6 +22,23 @@ const ChartDisplay = ({ chartOptions, isLoading }) => {
     try {
       // 創建新的圖表
       chartInstanceRef.current = window.Highcharts.chart(chartRef.current, chartOptions);
+
+      // --- 新增：同步 Highcharts 分配的顏色到 chartOptions ---
+      if (setChartOptions && chartInstanceRef.current && chartOptions.series) {
+        const highchartsSeries = chartInstanceRef.current.series;
+        let updated = false;
+        const newSeries = chartOptions.series.map((s, i) => {
+          if (!s.color && highchartsSeries[i] && highchartsSeries[i].color) {
+            updated = true;
+            return { ...s, color: highchartsSeries[i].color };
+          }
+          return s;
+        });
+        if (updated) {
+          setChartOptions({ ...chartOptions, series: newSeries });
+        }
+      }
+      // ---
     } catch (error) {
       console.error('Highcharts rendering error:', error);
     }
@@ -33,7 +49,7 @@ const ChartDisplay = ({ chartOptions, isLoading }) => {
         chartInstanceRef.current = null;
       }
     };
-  }, [chartOptions]);
+  }, [chartOptions, setChartOptions]);
 
   if (isLoading) {
     return (
