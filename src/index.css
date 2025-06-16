@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -99,5 +100,55 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Noto Sans TC', sans-serif;
+  }
+}
+
+/* 可編輯儲存格/標頭的樣式 */
+[contenteditable="true"] {
+  outline: 2px solid transparent;
+  transition: outline-color 0.2s;
+}
+
+td[contenteditable="true"] {
+  background-color: #fef9c3; /* 淡黃色背景 */
+}
+
+th[contenteditable="true"] {
+  background-color: #e0e7ff; /* 淡藍色背景 */
+}
+
+[contenteditable="true"]:focus {
+  outline-color: #3b82f6; /* 藍色外框線 */
+  background-color: #ffffff;
+}
+
+/* 顏色選擇器樣式 */
+input[type="color"] {
+  -webkit-appearance: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+  border-radius: 4px;
+}
+
+input[type="color"]::-webkit-color-swatch {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+/* Loading spinner */
+.spinner {
+  border-top-color: #3498db;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { 
+    transform: rotate(360deg); 
   }
 }
