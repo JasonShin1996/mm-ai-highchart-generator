@@ -189,7 +189,7 @@ const Index = () => {
   return (
     <div className="container mx-auto p-4 md:p-8 max-w-7xl">
       <header className="text-center mb-8">
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-900">AI 智慧數據可視化生成器</h1>
+        <h1 className="text-3xl md:text-4xl font-bold text-gray-900">MM AI Highcharts圖表生成器</h1>
         <p className="mt-2 text-gray-600">上傳您的 CSV 或 Excel 數據，用自然語言描述，讓 AI 為您生成互動式圖表。</p>
       </header>
 
