@@ -1,40 +1,30 @@
-interface GeminiResponse {
-  candidates?: Array<{
-    content?: {
-      parts?: Array<{
-        text?: string;
-      }>;
-    };
-  }>;
+interface BackendResponse {
+  result: string;
 }
 
 export async function generateChartConfig(prompt: string): Promise<string> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('Gemini API key is not configured');
-  }
-
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-  const payload = {
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: { responseMimeType: "text/plain" }
-  };
-
-  const response = await fetch(apiUrl, {
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+  
+  const response = await fetch(`${backendUrl}/api/generate-chart`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    headers: { 
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify({ prompt })
   });
 
   if (!response.ok) {
-    const errorBody = await response.json();
-    throw new Error(`API request failed (${response.status}): ${errorBody.error?.message || 'Unknown error'}`);
+    let errorMessage = '後端 API 請求失敗';
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData.detail || errorMessage;
+    } catch (e) {
+      // 如果無法解析錯誤 JSON，使用預設錯誤訊息
+    }
+    throw new Error(`${errorMessage} (${response.status})`);
   }
 
-  const result = await response.json() as GeminiResponse;
-  if (result.candidates?.[0]?.content?.parts?.[0]?.text) {
-    return result.candidates[0].content.parts[0].text;
-  } else {
-    throw new Error("Invalid or empty response from API");
-  }
+  const result = await response.json() as BackendResponse;
+  return result.result;
 } 

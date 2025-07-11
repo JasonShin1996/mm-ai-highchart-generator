@@ -60,7 +60,7 @@ const Index = () => {
 
     try {
       const headers = fileData.meta.fields.join(', ');
-      const dataSample = JSON.stringify(fileData.data.slice(0, 100), null, 2);
+      const dataSample = JSON.stringify(fileData.data.slice(0, 5000), null, 2);
       
       const fullPrompt = `
         你是一位精通 Highcharts 的數據可視化專家。
@@ -69,12 +69,12 @@ const Index = () => {
         1. 你的回覆 **必須** 只包含一個格式完全正確的 JSON 物件。
         2. **絕對不要** 在 JSON 物件前後包含任何文字、註解、或 markdown 語法。
         3. **不要** 使用 \`data.csv\` 或外部 URL 來載入數據。所有需要的數據都應該直接寫在 \`series\` 設定中。
-        4. 根據下方提供的數據範例來決定 x 軸 (categories) 和 y 軸 (data) 的對應關係。
+        4. 根據下方提供的數據範例來決定 x 軸 (categories/datetime) 和 y 軸 (data) 的對應關係。
         以下是使用者提供的資訊：
         ---
         數據的欄位 (Headers): ${headers}
         ---
-        數據的前 100 筆範例: ${dataSample}
+        數據的前 5000 筆範例: ${dataSample}
         ---
         使用者的需求: "${prompt}"
         ---
@@ -93,48 +93,129 @@ const Index = () => {
       configStr = configStr.substring(firstBracket, lastBracket + 1);
       const aiChartOptions = JSON.parse(configStr);
 
-      // 合併 AI 設定與固定樣式
+            // 動態生成 MM_THEME 配置
+      const generateMMTheme = (size = 'standard') => {
+        const isLarge = size === 'large';
+        
+        return {
+          'lang': {'numericSymbols': ["K", "M", "B", "T", "P", "E"]},
+          'colors': [
+            '#3BAFDA','#E9573F','#F6BB42','#70CA63','#7D5B4F','#3B3F4F',
+            '#926DDE','#57C7D4','#F44C87','#BC94AC','#184E74','#026352',
+            '#C1C286','#AA2906','#A5FFD6','#84DCC6','#FF99AC','#17C3B2',
+            '#D68C45','#6F2DBD','#F7AEF8','#B388EB','#8093F1','#72DDF7',
+            '#94D2BD','#E9D8A6','#EE9B00','#FFEE32','#37BC9B',
+          ],
+          'chart': {
+            'backgroundColor': '#ffffff',
+            'width': isLarge ? 975 : 960,
+            'height': isLarge ? 650 : 540,
+            'style': {
+              'fontFamily': '-apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif'
+            }
+          },
+          'title': {
+            'style': {
+              'color': '#333333', 
+              'fontSize': isLarge ? '26px' : '16px', 
+              'fontWeight': '450'
+            }
+          },
+          'subtitle': {
+            'text': 'MacroMicro.me | MacroMicro',
+            'style': {
+              'color': '#666666', 
+              'fontSize': isLarge ? '20px' : '12px'
+            }
+          },
+          'xAxis': {
+            'lineColor': '#d8d8d8', 'lineWidth': 1,
+            'tickColor': '#d8d8d8', 'tickWidth': 1,
+            'labels': {
+              'style': {
+                'color': '#666666', 
+                'fontSize': isLarge ? '16px' : '11px'
+              }
+            },
+            'tickPixelInterval': 150,
+            'title': {'text': ''}
+          },
+          'yAxis': {
+            'gridLineColor': '#e6e6e6', 'gridLineWidth': 1,
+            'labels': {
+              'style': {
+                'color': '#666666', 
+                'fontSize': isLarge ? '16px' : '11px', 
+                'fontWeight': '450'
+              }
+            },
+            'title': {
+              'style': {
+                'color': '#666666', 
+                'fontSize': isLarge ? '17px' : '11px'
+              }
+            }
+          },
+          'legend': {
+            'itemStyle': {
+              'color': '#000000', 
+              'fontSize': isLarge ? '24px' : '20px', 
+              'fontWeight': '600'
+            }
+          },
+          'plotOptions': {
+            'series': {
+              'lineWidth': 3,
+              'marker': {'enabled': false},
+            }
+          },
+          'credits': {'enabled': false},
+          'exporting': {'enabled': false}
+        };
+      };
+
+      // 根據 AI 回傳的圖表尺寸決定使用哪個主題
+      const chartSize = aiChartOptions.chart?.width === 975 && aiChartOptions.chart?.height === 650 ? 'large' : 'standard';
+      const MM_THEME = generateMMTheme(chartSize);
+
+      // 合併 AI 設定與 MM_THEME 樣式
       const finalChartOptions = {
         ...aiChartOptions,
+        lang: MM_THEME.lang,
+        colors: MM_THEME.colors,
         chart: { 
           ...aiChartOptions.chart, 
-          backgroundColor: '#ffffff', 
-          height: 650, 
-          width: 975, 
-          style: {'fontFamily': 'Noto Sans TC, sans-serif'}
+          ...MM_THEME.chart
         },
         title: { 
           ...aiChartOptions.title, 
-          style: {'color': '#333333', 'fontSize': '26px', 'fontWeight': '450'}
+          style: MM_THEME.title.style
         },
         subtitle: { 
           ...aiChartOptions.subtitle, 
-          style: {'color': '#666666', 'fontSize': '20px'}, 
-          text: 'MacroMicro.me | MacroMicro'
+          ...MM_THEME.subtitle
         },
         xAxis: { 
           ...(Array.isArray(aiChartOptions.xAxis) ? aiChartOptions.xAxis[0] : aiChartOptions.xAxis), 
-          lineColor: '#d8d8d8', 
-          lineWidth: 1, 
-          labels: { style: {'color': '#666666', 'fontSize': '16px'} }, 
-          tickColor: '#d8d8d8', 
-          tickPixelInterval: 150, 
-          tickWidth: 1 
+          ...MM_THEME.xAxis
         },
         legend: { 
           ...aiChartOptions.legend, 
-          itemStyle: {'color': '#000000', 'fontSize': '24px', 'fontWeight': '500'}
+          ...MM_THEME.legend
         },
-        credits: { enabled: false },
-        exporting: { enabled: false }
+        plotOptions: {
+          ...aiChartOptions.plotOptions,
+          ...MM_THEME.plotOptions,
+          series: {
+            ...aiChartOptions.plotOptions?.series,
+            ...MM_THEME.plotOptions.series
+          }
+        },
+        credits: MM_THEME.credits,
+        exporting: MM_THEME.exporting
       };
 
-      const yAxisTemplate = { 
-        gridLineColor: '#e6e6e6', 
-        gridLineWidth: 1, 
-        labels: { style: {'color': '#666666', 'fontSize': '16px', 'fontWeight': '450'} }, 
-        title: { style: {'color': '#666666', 'fontSize': '17px'} } 
-      };
+      const yAxisTemplate = MM_THEME.yAxis;
 
       if (Array.isArray(aiChartOptions.yAxis)) {
         finalChartOptions.yAxis = aiChartOptions.yAxis.map(axis => ({
