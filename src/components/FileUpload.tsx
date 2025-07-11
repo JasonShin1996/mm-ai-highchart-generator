@@ -1,6 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, FileText, X } from 'lucide-react';
+import { Upload, FileText, X, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 declare global {
   interface Window {
@@ -13,6 +16,8 @@ const FileUpload = ({ onFileUpload }) => {
   const [dragActive, setDragActive] = useState(false);
   const [fileName, setFileName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [autoConvertDates, setAutoConvertDates] = useState(true);
   const { toast } = useToast();
 
   const handleFile = useCallback(async (file) => {
@@ -55,7 +60,7 @@ const FileUpload = ({ onFileUpload }) => {
     } finally {
       setIsProcessing(false);
     }
-  }, [onFileUpload, toast]);
+  }, [onFileUpload, toast, autoConvertDates]);
 
   const parseCsv = (file) => {
     return new Promise((resolve, reject) => {
@@ -66,7 +71,7 @@ const FileUpload = ({ onFileUpload }) => {
 
       window.Papa.parse(file, {
         header: true,
-        dynamicTyping: true,
+        dynamicTyping: autoConvertDates,
         skipEmptyLines: true,
         complete: (results) => {
           if (results.errors && results.errors.length > 0) {
@@ -100,7 +105,10 @@ const FileUpload = ({ onFileUpload }) => {
           }
           
           const data = new Uint8Array(result as ArrayBuffer);
-          const workbook = window.XLSX.read(data, { type: 'array', cellDates: true });
+          const workbook = window.XLSX.read(data, { 
+            type: 'array', 
+            cellDates: autoConvertDates 
+          });
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
           const rawData = window.XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
@@ -165,6 +173,39 @@ const FileUpload = ({ onFileUpload }) => {
 
   return (
     <div className="w-full">
+      {/* 設定面板 */}
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSettings(!showSettings)}
+            className="text-sm"
+          >
+            <Settings className="w-4 h-4 mr-1" />
+            上傳設定
+          </Button>
+        </div>
+      </div>
+
+      {showSettings && (
+        <div className="mb-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="auto-convert-dates"
+              checked={autoConvertDates}
+              onCheckedChange={setAutoConvertDates}
+            />
+            <Label htmlFor="auto-convert-dates" className="text-sm">
+              自動轉換日期格式
+            </Label>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            關閉此選項會保持原始文字格式，避免日期顯示為時間戳
+          </p>
+        </div>
+      )}
+
       <div
         className={`relative flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-all duration-200 ${
           dragActive 
@@ -201,19 +242,21 @@ const FileUpload = ({ onFileUpload }) => {
                     }}
                     className="text-blue-600 hover:text-blue-800"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               )}
             </>
           )}
         </div>
+        
         <input
           id="file-input"
           type="file"
           className="hidden"
-          accept=".csv,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          accept=".csv,.xls,.xlsx"
           onChange={handleChange}
+          disabled={isProcessing}
         />
       </div>
     </div>

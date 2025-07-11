@@ -5,6 +5,62 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 const DataPreview = ({ data }) => {
   const [tableData, setTableData] = useState({ headers: [], rows: [] });
 
+  // 格式化值的函數，特別處理Date對象和數字
+  const formatValue = (value) => {
+    if (value instanceof Date) {
+      // 檢查是否為有效的日期
+      if (isNaN(value.getTime())) {
+        return '';
+      }
+      // 格式化為 YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS 格式
+      const year = value.getFullYear();
+      const month = String(value.getMonth() + 1).padStart(2, '0');
+      const day = String(value.getDate()).padStart(2, '0');
+      const hours = value.getHours();
+      const minutes = value.getMinutes();
+      const seconds = value.getSeconds();
+      
+      // 如果時間為 00:00:00，只顯示日期
+      if (hours === 0 && minutes === 0 && seconds === 0) {
+        return `${year}-${month}-${day}`;
+      } else {
+        const formattedHours = String(hours).padStart(2, '0');
+        const formattedMinutes = String(minutes).padStart(2, '0');
+        const formattedSeconds = String(seconds).padStart(2, '0');
+        return `${year}-${month}-${day} ${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
+      }
+    }
+    
+    // 處理數字格式
+    if (typeof value === 'number' && !isNaN(value)) {
+      // 如果是整數，直接返回
+      if (Number.isInteger(value)) {
+        return value.toString();
+      }
+      // 如果是小數，格式化為最多4位小數，並去除尾隨零
+      const formatted = value.toFixed(4);
+      return parseFloat(formatted).toString();
+    }
+    
+    // 處理字符串形式的數字
+    if (typeof value === 'string' && value.trim() !== '') {
+      const numValue = parseFloat(value);
+      if (!isNaN(numValue) && isFinite(numValue)) {
+        // 檢查原始字符串是否看起來像數字（避免處理日期字符串等）
+        const trimmedValue = value.trim();
+        if (/^-?\d*\.?\d+([eE][-+]?\d+)?$/.test(trimmedValue)) {
+          if (Number.isInteger(numValue)) {
+            return numValue.toString();
+          }
+          const formatted = numValue.toFixed(4);
+          return parseFloat(formatted).toString();
+        }
+      }
+    }
+    
+    return value;
+  };
+
   useEffect(() => {
     if (!data || !data.data || !data.meta || !data.meta.fields) {
       setTableData({ headers: [], rows: [] });
@@ -85,7 +141,7 @@ const DataPreview = ({ data }) => {
                 <TableCell key={cellIndex}>
                   <input
                     type="text"
-                    value={row[header] || ''}
+                    value={formatValue(row[header]) || ''}
                     onChange={(e) => handleCellEdit(rowIndex, header, e.target.value)}
                     className="w-full bg-transparent border-none outline-none focus:bg-yellow-50 focus:ring-2 focus:ring-blue-500 rounded px-2 py-1"
                   />

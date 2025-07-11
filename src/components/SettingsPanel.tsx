@@ -226,10 +226,10 @@ const SettingsPanel = ({ chartOptions, onOptionsChange }) => {
                         className="h-8 text-sm"
                       />
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-end gap-2 mt-1">
                       {/* 系列顏色 */}
-                      <div>
-                        <Label htmlFor={`series-color-${index}`}>顏色</Label>
+                      <div className="flex flex-col">
+                        <Label htmlFor={`series-color-${index}`} className="text-sm mb-1">顏色</Label>
                         <input
                           id={`series-color-${index}`}
                           type="color"
@@ -240,7 +240,7 @@ const SettingsPanel = ({ chartOptions, onOptionsChange }) => {
                       </div>
                       {/* 圖表類型 */}
                       <div className="flex-1">
-                        <Label htmlFor={`series-type-${index}`}>類型</Label>
+                        <Label htmlFor={`series-type-${index}`} className="text-sm mb-1 block">類型</Label>
                         <Select
                           value={series.type || 'column'}
                           onValueChange={(value) => updateSeriesOptions(index, 'type', value)}
@@ -255,6 +255,15 @@ const SettingsPanel = ({ chartOptions, onOptionsChange }) => {
                             <SelectItem value="bar">橫條圖</SelectItem>
                             <SelectItem value="area">面積圖</SelectItem>
                             <SelectItem value="pie">圓餅圖</SelectItem>
+                            <SelectItem value="scatter">散佈圖</SelectItem>
+                            <SelectItem value="bubble">氣泡圖</SelectItem>
+                            <SelectItem value="gauge">儀表圖</SelectItem>
+                            <SelectItem value="boxplot">箱線圖</SelectItem>
+                            <SelectItem value="arearange">範圍面積圖</SelectItem>
+                            <SelectItem value="columnrange">範圍柱狀圖</SelectItem>
+                            <SelectItem value="funnel">漏斗圖</SelectItem>
+                            <SelectItem value="pyramid">金字塔圖</SelectItem>
+                            <SelectItem value="polar">極地圖</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
