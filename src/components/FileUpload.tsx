@@ -1,9 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, FileText, X, Settings } from 'lucide-react';
+import { Upload, FileText, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 
 declare global {
   interface Window {
@@ -16,8 +13,7 @@ const FileUpload = ({ onFileUpload }) => {
   const [dragActive, setDragActive] = useState(false);
   const [fileName, setFileName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [autoConvertDates, setAutoConvertDates] = useState(true);
+  const [autoConvertDates] = useState(true); // 默認開啟自動轉換日期
   const { toast } = useToast();
 
   const handleFile = useCallback(async (file) => {
@@ -172,93 +168,60 @@ const FileUpload = ({ onFileUpload }) => {
   };
 
   return (
-    <div className="w-full">
-      {/* 設定面板 */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowSettings(!showSettings)}
-            className="text-sm"
-          >
-            <Settings className="w-4 h-4 mr-1" />
-            上傳設定
-          </Button>
-        </div>
-      </div>
-
-      {showSettings && (
-        <div className="mb-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="auto-convert-dates"
-              checked={autoConvertDates}
-              onCheckedChange={setAutoConvertDates}
-            />
-            <Label htmlFor="auto-convert-dates" className="text-sm">
-              自動轉換日期格式
-            </Label>
+    <div className="w-full max-w-md">
+      {fileName ? (
+        // 已上傳文件的簡潔顯示
+        <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center space-x-2 min-w-0">
+            <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
+            <span className="text-sm font-medium text-blue-900 truncate">{fileName}</span>
           </div>
-          <p className="text-xs text-gray-500 mt-1">
-            關閉此選項會保持原始文字格式，避免日期顯示為時間戳
-          </p>
+          <button
+            onClick={clearFile}
+            className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 flex-shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      ) : (
+        // 上傳區域的簡潔設計
+        <div
+          className={`relative flex items-center justify-center h-12 border border-dashed rounded-lg cursor-pointer transition-all duration-200 ${
+            dragActive 
+              ? 'border-blue-400 bg-blue-50' 
+              : 'border-gray-300 bg-gray-50 hover:border-gray-400 hover:bg-gray-100'
+          } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+          onClick={() => !isProcessing && document.getElementById('file-input')?.click()}
+        >
+          {isProcessing ? (
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-sm text-gray-600">處理檔案中...</span>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2">
+              <Upload className="w-4 h-4 text-gray-400" />
+              <span className="text-sm text-gray-600">
+                <span className="font-medium">點擊上傳</span> 或拖曳檔案至此
+              </span>
+              <span className="text-xs text-gray-400 ml-2">CSV, XLS, XLSX</span>
+            </div>
+          )}
+          
+          <input
+            id="file-input"
+            type="file"
+            className="hidden"
+            accept=".csv,.xls,.xlsx"
+            onChange={handleChange}
+            disabled={isProcessing}
+          />
         </div>
       )}
-
-      <div
-        className={`relative flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-all duration-200 ${
-          dragActive 
-            ? 'border-blue-500 bg-blue-50' 
-            : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
-        } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-        onDragEnter={handleDrag}
-        onDragLeave={handleDrag}
-        onDragOver={handleDrag}
-        onDrop={handleDrop}
-        onClick={() => !isProcessing && document.getElementById('file-input')?.click()}
-      >
-        <div className="flex flex-col items-center justify-center pt-5 pb-6">
-          {isProcessing ? (
-            <>
-              <div className="w-8 h-8 mb-2 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-sm text-gray-600">處理檔案中...</p>
-            </>
-          ) : (
-            <>
-              <Upload className="w-8 h-8 mb-2 text-gray-400" />
-              <p className="text-sm text-gray-500">
-                <span className="font-semibold">點擊上傳</span> 或拖曳檔案至此
-              </p>
-              <p className="text-xs text-gray-500">支援 CSV, XLS, XLSX</p>
-              {fileName && (
-                <div className="flex items-center mt-2 px-3 py-1 bg-blue-100 rounded-full">
-                  <FileText className="w-4 h-4 text-blue-600 mr-2" />
-                  <span className="text-xs text-blue-600 mr-2">{fileName}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      clearFile();
-                    }}
-                    className="text-blue-600 hover:text-blue-800"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-        
-        <input
-          id="file-input"
-          type="file"
-          className="hidden"
-          accept=".csv,.xls,.xlsx"
-          onChange={handleChange}
-          disabled={isProcessing}
-        />
-      </div>
     </div>
   );
 };

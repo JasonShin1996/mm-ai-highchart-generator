@@ -13,6 +13,7 @@ import FileUpload from '@/components/FileUpload';
 import DataPreview from '@/components/DataPreview';
 import ChartDisplay from '@/components/ChartDisplay';
 import SettingsPanel from '@/components/SettingsPanel';
+import ChartGallery from '@/components/ChartGallery';
 import { useToast } from '@/hooks/use-toast';
 import { generateChartConfig, generateChartSuggestion } from '@/services/gemini';
 
@@ -24,6 +25,8 @@ const Index = () => {
   const [isSuggestionLoading, setIsSuggestionLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [generatedCode, setGeneratedCode] = useState('');
+  const [selectedChartType, setSelectedChartType] = useState<string | null>(null);
+  const [recommendedChartTypes, setRecommendedChartTypes] = useState<string[]>([]);
   const { toast } = useToast();
 
   // 優化數據精度以減少傳送量
@@ -58,16 +61,99 @@ const Index = () => {
     });
   }, []);
 
+  // AI 推薦圖表類型邏輯
+  const analyzeDataAndRecommendCharts = useCallback((data) => {
+    const recommendations = [];
+    
+    if (!data || !data.meta || !data.data) return recommendations;
+    
+    const fields = data.meta.fields || [];
+    const sampleData = data.data.slice(0, 10);
+    
+    // 檢查是否有時間相關欄位
+    const hasTimeColumn = fields.some(field => 
+      field.toLowerCase().includes('date') || 
+      field.toLowerCase().includes('datetime') ||
+      field.toLowerCase().includes('period') ||
+      field.toLowerCase().includes('time') ||
+      field.toLowerCase().includes('年') ||
+      field.toLowerCase().includes('月') ||
+      field.toLowerCase().includes('日')
+    );
+    
+    // 檢查數值欄位數量
+    const numericalFields = fields.filter(field => {
+      const values = sampleData.map(row => row[field]).filter(v => v !== null && v !== undefined);
+      return values.length > 0 && values.every(v => !isNaN(parseFloat(v)));
+    });
+    
+    // 檢查類別欄位
+    const categoricalFields = fields.filter(field => {
+      const values = sampleData.map(row => row[field]).filter(v => v !== null && v !== undefined);
+      const uniqueValues = [...new Set(values)];
+      return uniqueValues.length < values.length * 0.7 && uniqueValues.length > 1;
+    });
+    
+    // 基於數據特性推薦
+    if (hasTimeColumn && numericalFields.length > 0) {
+      recommendations.push('line', 'area', 'spline');
+    }
+    
+    if (categoricalFields.length > 0 && numericalFields.length > 0) {
+      recommendations.push('column', 'stacked_column');
+    }
+    
+    if (categoricalFields.length > 0 && numericalFields.length === 1) {
+      recommendations.push('pie', 'donut');
+    }
+    
+    if (numericalFields.length >= 2) {
+      recommendations.push('scatter');
+    }
+    
+    // 去重並限制推薦數量
+    return [...new Set(recommendations)].slice(0, 3);
+  }, []);
+
+  // 處理圖表類型選擇
+  const handleChartTypeSelect = useCallback((chartType: string) => {
+    setSelectedChartType(chartType);
+    
+    // 根據選擇的圖表類型調整 prompt 提示
+    const chartTypePrompts = {
+      'line': '建議：描述您想要展示的時間序列數據，如「顯示過去12個月的銷售趨勢」',
+      'column': '建議：描述您想要比較的類別數據，如「比較不同地區的銷售額」',
+      'area': '建議：描述您想要強調的累積效果，如「顯示各產品線的營收貢獻」',
+      'pie': '建議：描述您想要展示的比例關係，如「顯示各部門的預算分配」',
+      'scatter': '建議：描述您想要探索的兩個變量關係，如「分析價格與銷量的關係」',
+      'stacked_column': '建議：描述您想要展示的分組和組成，如「顯示各季度不同產品的銷售構成」',
+      'spline': '建議：描述您想要展示的平滑趨勢，如「顯示股價的平滑波動趨勢」',
+      'donut': '建議：描述您想要展示的比例關係，如「顯示市場份額分布」'
+    };
+    
+    // 如果當前 prompt 是空的或是預設建議，則更新提示
+    if (!prompt.trim() || prompt.includes('建議：')) {
+      // 暫時不直接修改 prompt，讓用戶看到建議
+      console.log('Chart type selected:', chartType);
+    }
+  }, [prompt]);
+
   const handleFileUpload = useCallback(async (data) => {
     setFileData(data);
     setChartOptions(null);
     setShowSettings(false);
     setPrompt(''); // 清空之前的 prompt
     setGeneratedCode(''); // 清空之前的生成代碼
+    setSelectedChartType(null); // 重置圖表類型選擇
+    setRecommendedChartTypes([]); // 重置推薦
     console.log('File data loaded:', data);
     
-    // 如果有數據，自動生成建議
+    // 如果有數據，分析並推薦圖表類型
     if (data && data.data && data.data.length > 0 && data.meta && data.meta.fields) {
+      // 分析數據並推薦圖表類型
+      const recommendations = analyzeDataAndRecommendCharts(data);
+      setRecommendedChartTypes(recommendations);
+      
       setIsSuggestionLoading(true);
       try {
         // 取前10筆數據作為樣本，並優化精度
@@ -78,20 +164,20 @@ const Index = () => {
         
         toast({
           title: "建議已生成",
-          description: "AI 已根據您的數據生成圖表建議，您可以直接使用或進行修改。",
+          description: "AI 已根據您的數據生成圖表建議和推薦類型，請選擇圖表類型後進行描述。",
         });
       } catch (error) {
         console.error('生成建議失敗:', error);
         toast({
           title: "建議生成失敗",
-          description: "無法生成圖表建議，請手動描述您想要的圖表。",
+          description: "無法生成圖表建議，請選擇圖表類型並手動描述您想要的圖表。",
           variant: "destructive",
         });
       } finally {
         setIsSuggestionLoading(false);
       }
     }
-  }, [toast, optimizeDataPrecision]);
+  }, [toast, optimizeDataPrecision, analyzeDataAndRecommendCharts]);
 
   const handlePromptChange = useCallback((e) => {
     setPrompt(e.target.value);
@@ -103,6 +189,9 @@ const Index = () => {
       try {
         console.log('🔄 使用時間序列數據組裝邏輯');
         config.series = assembleTimeSeriesData(fullData, config._assembly_instructions);
+        
+        // 添加標記，表示數據已經組裝完成
+        config._data_assembled = true;
         delete config._time_series_data;
         delete config._assembly_instructions;
       } catch (error) {
@@ -121,11 +210,218 @@ const Index = () => {
     return series.map(seriesConfig => ({
       name: seriesConfig.name,        // 使用 LLM 提供的友善名稱
       type: seriesConfig.type,        // 使用 LLM 決定的圖表類型
-      data: fullData.map(row => [
-        new Date(row[timeColumn]).getTime(),
-        parseFloat(row[seriesConfig.column]) || 0
-      ])
+      data: fullData.map(row => {
+        const timeValue = row[timeColumn];
+        let timestamp;
+        
+        // 智能時間戳轉換
+        if (typeof timeValue === 'number') {
+          // 如果已經是數字，檢查是否為有效的時間戳
+          if (timeValue > 1000000000 && timeValue < 9999999999) {
+            // 秒級時間戳，轉為毫秒
+            timestamp = timeValue * 1000;
+          } else if (timeValue > 1000000000000 && timeValue < 9999999999999) {
+            // 毫秒級時間戳，直接使用
+            timestamp = timeValue;
+          } else {
+            // 無效的數字，返回 null 表示跳過
+            return null;
+          }
+        } else if (timeValue) {
+          // 字符串或其他類型，嘗試轉換
+          const date = new Date(timeValue);
+          if (!isNaN(date.getTime())) {
+            timestamp = date.getTime();
+          } else {
+            // 無效日期，返回 null 表示跳過
+            console.warn(`無效的時間值: ${timeValue}，跳過此數據點`);
+            return null;
+          }
+        } else {
+          // 空值，返回 null 表示跳過
+          return null;
+        }
+        
+        return [timestamp, parseFloat(row[seriesConfig.column]) || 0];
+      }).filter(point => point !== null)  // 過濾掉 null 值
     }));
+  };
+
+  // 根據圖表類型生成專門的 prompt 模板
+  const getChartTypeSpecificPrompt = (chartType: string, userPrompt: string, headers: string, dataSample: string) => {
+    const basePrompt = `
+      你是一位精通 Highcharts 的數據可視化專家。
+
+      第一步：判斷處理策略
+      數據量：${fileData.data.length} 行
+      圖表類型：${chartType}
+      
+      如果數據量大（>100行）且適合自動組裝（時間序列+多數值欄位），例如line chart, column chart, area chart，請在JSON最前面加上：
+      {
+        "_time_series_data": true,
+        "_assembly_instructions": {
+          "timeColumn": "時間欄位名稱",
+          "series": [
+            {"column": "數值欄位1", "name": "友善顯示名稱1", "type": "根據用戶需求決定"},
+            {"column": "數值欄位2", "name": "友善顯示名稱2", "type": "根據用戶需求決定"}
+          ]
+        },
+        ... 其他配置
+      }
+
+      重要：如果使用自動組裝，最終的 series 將會是類似以下格式，但欄位名稱會是使用者提供的欄位名稱：
+      "series": [
+        {
+          "data": [[1546560000000.0, 0.0], [1547164800000.0, 0.0], [1547769600000.0, 0.0], ...],
+          "name": "USDC",
+          "type": "area"
+        },
+        {
+          "data": [[1546560000000.0, 1.8984], [1547164800000.0, 1.9733], [1547769600000.0, 2.0499], ...],
+          "name": "USDT", 
+          "type": "area"
+        }
+      ]
+      其中 data 是 [時間戳毫秒, 數值] 的二維陣列，每個 series 包含 data、name、type 三個屬性。
+
+      否則請按照以下完整指令處理：
+
+      任務: 根據使用者提供的數據和自然語言需求，產生一個完整且有效的 Highcharts JSON 設定物件。
+      限制:
+      1. 你的回覆 **必須** 只包含一個格式完全正確的 JSON 物件。
+      2. **絕對不要** 在 JSON 物件前後包含任何文字、註解、或 markdown 語法。
+      3. **不要** 使用 \`data.csv\` 或外部 URL 來載入數據。所有需要的數據都應該直接寫在 \`series\` 設定中。
+      4. 根據下方提供的數據範例來決定 x 軸 (categories/datetime) 和 y 軸 (data) 的對應關係。
+
+      數據的欄位 (Headers): ${headers}
+      數據範例: ${dataSample}
+      使用者的需求: "${userPrompt}"
+    `;
+
+    const chartTypeTemplates = {
+      'line': `
+        ${basePrompt}
+        
+        **線圖專門指令：**
+        - 專注於時間序列數據的展示
+        - 確保 X 軸正確處理時間數據（使用 datetime 類型，並把日期或年份轉換為timestamp）
+        - 多條線使用不同顏色區分
+        - 設置適當的 lineWidth (建議 3)
+        - 預設不添加數據點標記 ("marker": {"enabled": false})，除非用戶特別指名要添加
+        - 如有多個數據系列，確保圖例清晰
+        
+        現在，請產生專門用於線圖的 Highcharts JSON 設定物件。
+      `,
+      
+      'column': `
+        ${basePrompt}
+        
+        **柱狀圖專門指令：**
+        - 如果是類別數據的比較，則確保 X 軸使用 categories 類型
+        - 如果是時間序列數據的趨勢比較，則保 X 軸正確處理時間數據（使用 datetime 類型，並把日期或年份轉換為timestamp）
+        - 設置適當的柱狀圖寬度和間距
+        - 如有多個數據系列，考慮使用分組或堆疊
+        - 如果數據數量不多的時候，添加數據標籤以提高可讀性，數據數量多的時候，則不添加數據標籤
+        - 設置適當的 Y 軸範圍和標籤
+        
+        現在，請產生專門用於柱狀圖的 Highcharts JSON 設定物件。
+      `,
+      
+      'area': `
+        ${basePrompt}
+        
+        **面積圖專門指令：**
+        - 強調數據的累積效果和趨勢
+        - 使用適當的填充透明度 (fillOpacity)
+        - 確保顏色搭配協調
+        - 考慮使用 stacking 來展示累積效果
+        - 設置平滑的曲線效果
+        
+        現在，請產生專門用於面積圖的 Highcharts JSON 設定物件。
+      `,
+      
+      'pie': `
+        ${basePrompt}
+        
+        **圓餅圖專門指令：**
+        - 專注於比例關係的展示，圓餅圖適合展示數據的組成比例
+        - 確保數據加總為有意義的整體
+        - 設置適當的餅圖大小和位置
+        - 添加數據標籤顯示百分比，數據數量不多的時候，添加數據標籤，數據數量多的時候，則不添加數據標籤
+        - 考慮使用 allowPointSelect 讓用戶互動
+        - 設置適當的顏色對比
+        
+        現在，請產生專門用於餅圖的 Highcharts JSON 設定物件。
+      `,
+      
+      'scatter': `
+        ${basePrompt}
+        
+        **散佈圖專門指令：**
+        - 專注於兩個變量之間的關係
+        - 確保 X 和 Y 軸都使用數值數據
+        - 設置適當的散點大小和透明度
+        - 考慮添加趨勢線或回歸線
+        - 如有分類，使用不同顏色或形狀區分
+        - 設置適當的軸範圍以突出相關性
+        
+        現在，請產生專門用於散點圖的 Highcharts JSON 設定物件。
+      `,
+      
+      'stacked_column': `
+        ${basePrompt}
+        
+        **堆疊柱狀圖專門指令：**
+        - 專注於組成結構的展示
+        - 使用 stacking: 'normal' 或 'percent'
+        - 確保每個堆疊部分有清晰的標籤
+        - 設置適當的顏色區分各個組成部分
+        - 考慮添加總計標籤
+        - 設置清晰的圖例說明
+        
+        現在，請產生專門用於堆疊柱狀圖的 Highcharts JSON 設定物件。
+      `,
+      
+      'spline': `
+        ${basePrompt}
+        
+        **平滑線圖專門指令：**
+        - 專注於平滑趨勢的展示
+        - 使用 spline 類型創建平滑曲線
+        - 設置適當的平滑度參數
+        - 考慮添加數據點標記
+        - 確保線條粗細適中
+        - 處理好時間序列數據
+        
+        現在，請產生專門用於平滑線圖的 Highcharts JSON 設定物件。
+      `,
+      
+      'donut': `
+        ${basePrompt}
+        
+        **環形圖專門指令：**
+        - 專注於比例關係的展示，中間留空
+        - 設置適當的內徑和外徑比例
+        - 考慮在中心添加總計或關鍵數字
+        - 設置適當的數據標籤位置
+        - 使用協調的顏色方案
+        - 確保圖例清晰易讀
+        
+        現在，請產生專門用於環形圖的 Highcharts JSON 設定物件。
+      `
+    };
+
+    return chartTypeTemplates[chartType] || `
+      ${basePrompt}
+      
+      **通用圖表指令：**
+      - 根據數據特性和用戶需求選擇最合適的圖表配置
+      - 確保圖表清晰易讀
+      - 設置適當的顏色和樣式
+      - 添加必要的標籤和說明
+      
+      現在，請產生 Highcharts JSON 設定物件。
+    `;
   };
 
   const generateChart = async () => {
@@ -147,6 +443,15 @@ const Index = () => {
       return;
     }
 
+    if (!selectedChartType) {
+      toast({
+        title: "錯誤", 
+        description: "請先選擇圖表類型。",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     setShowSettings(false);
 
@@ -161,58 +466,8 @@ const Index = () => {
       const optimizedSample = optimizeDataPrecision(rawSample);
       const dataSample = JSON.stringify(optimizedSample, null, 2);
       
-      const smartPrompt = `
-        你是一位精通 Highcharts 的數據可視化專家。
-
-        第一步：判斷處理策略
-        數據量：${fileData.data.length} 行
-        如果數據量大（>100行）且適合自動組裝（時間序列+多數值欄位），請在JSON最前面加上：
-        {
-          "_time_series_data": true,
-          "_assembly_instructions": {
-            "timeColumn": "時間欄位名稱",
-            "series": [
-              {"column": "數值欄位1", "name": "友善顯示名稱1", "type": "根據用戶需求決定"},
-              {"column": "數值欄位2", "name": "友善顯示名稱2", "type": "根據用戶需求決定"}
-            ]
-          },
-          ... 其他配置
-        }
-
-        重要：如果使用自動組裝，最終的 series 將會是類似以下格式，但欄位名稱會是使用者提供的欄位名稱：
-        "series": [
-          {
-            "data": [[1546560000000.0, 0.0], [1547164800000.0, 0.0], [1547769600000.0, 0.0], ...],
-            "name": "USDC",
-            "type": "area"
-          },
-          {
-            "data": [[1546560000000.0, 1.8984], [1547164800000.0, 1.9733], [1547769600000.0, 2.0499], ...],
-            "name": "USDT", 
-            "type": "area"
-          }
-        ]
-        其中 data 是 [時間戳毫秒, 數值] 的二維陣列，每個 series 包含 data、name、type 三個屬性。
-
-        否則請按照以下完整指令處理：
-
-        任務: 根據使用者提供的數據和自然語言需求，產生一個完整且有效的 Highcharts JSON 設定物件。
-        限制:
-        1. 你的回覆 **必須** 只包含一個格式完全正確的 JSON 物件。
-        2. **絕對不要** 在 JSON 物件前後包含任何文字、註解、或 markdown 語法。
-        3. **不要** 使用 \`data.csv\` 或外部 URL 來載入數據。所有需要的數據都應該直接寫在 \`series\` 設定中。
-        4. 根據下方提供的數據範例來決定 x 軸 (categories/datetime) 和 y 軸 (data) 的對應關係。
-        
-        以下是使用者提供的資訊：
-        ---
-        數據的欄位 (Headers): ${headers}
-        ---
-        數據範例: ${dataSample}
-        ---
-        使用者的需求: "${prompt}"
-        ---
-        現在，請產生 Highcharts JSON 設定物件。
-      `;
+      // 使用圖表類型特定的 prompt 模板
+      const smartPrompt = getChartTypeSpecificPrompt(selectedChartType, prompt, headers, dataSample);
 
       const chartConfigString = await generateChartConfig(smartPrompt);
       let configStr = chartConfigString.replace(/^```json\s*/, '').replace(/```$/, '');
@@ -433,24 +688,36 @@ const Index = () => {
       </header>
 
       <div className="space-y-8">
-        {/* 上方：步驟 1 & 2 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* 步驟一：上傳檔案 */}
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <span className="bg-blue-500 text-white rounded-full h-8 w-8 text-sm flex items-center justify-center mr-3">
-                  1
-                </span>
-                上傳您的 CSV / Excel 檔案
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+        {/* 步驟一：上傳檔案與數據預覽 */}
+        <Card className="shadow-lg">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center">
+              <span className="bg-blue-500 text-white rounded-full h-8 w-8 text-sm flex items-center justify-center mr-3">
+                1
+              </span>
+              上傳您的 CSV / Excel 檔案
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-4">
               <FileUpload onFileUpload={handleFileUpload} />
-            </CardContent>
-          </Card>
+              
+              {/* 數據預覽 */}
+              {fileData && (
+                <div className="space-y-3">
+                  <div className="flex items-center pt-3 border-t border-gray-200">
+                    <FileSpreadsheet className="mr-2 h-4 w-4 text-gray-600" />
+                    <span className="text-sm font-medium text-gray-700">數據預覽 (標頭與儲存格可直接編輯)</span>
+                  </div>
+                  <DataPreview data={fileData} />
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* 步驟二：描述需求 */}
+        {/* 步驟二：查看AI建議並描述需求 */}
+        {fileData && (
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center">
@@ -493,109 +760,137 @@ const Index = () => {
               </div>
             </CardContent>
           </Card>
-        </div>
+        )}
 
-        {/* 數據預覽 */}
-        {fileData && (
+        {/* 步驟三：選擇圖表類型 */}
+        {fileData && prompt && !isSuggestionLoading && (
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center">
-                <FileSpreadsheet className="mr-2 h-5 w-5" />
-                數據預覽 (標頭與儲存格可直接編輯)
+                <span className="bg-blue-500 text-white rounded-full h-8 w-8 text-sm flex items-center justify-center mr-3">
+                  3
+                </span>
+                選擇圖表類型
+                {recommendedChartTypes.length > 0 && (
+                  <span className="ml-2 text-sm text-green-600 bg-green-100 px-2 py-1 rounded">
+                    AI 已推薦 {recommendedChartTypes.length} 種適合的圖表類型
+                  </span>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <DataPreview data={fileData} />
+              <ChartGallery
+                selectedChartType={selectedChartType}
+                onChartTypeSelect={handleChartTypeSelect}
+                recommendedTypes={recommendedChartTypes}
+              />
             </CardContent>
           </Card>
         )}
 
-        {/* 圖表生成與顯示 */}
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span className="flex items-center text-xl">
-                <span className="bg-blue-500 text-white rounded-full h-8 w-8 text-sm flex items-center justify-center mr-3">
-                  3
+        {/* 圖表生成與顯示 - 只有在選擇了圖表類型後才顯示 */}
+        {selectedChartType && (
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center text-xl">
+                  <span className="bg-blue-500 text-white rounded-full h-8 w-8 text-sm flex items-center justify-center mr-3">
+                    4
+                  </span>
+                  生成與設定圖表
+                  <span className="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                    {(() => {
+                      const chartTypeNames = {
+                        'line': '折線圖',
+                        'column': '柱狀圖',
+                        'area': '面積圖',
+                        'pie': '圓餅圖',
+                        'scatter': '散佈圖',
+                        'stacked_column': '堆疊柱狀圖',
+                        'spline': '平滑線圖',
+                        'donut': '環形圖'
+                      };
+                      return chartTypeNames[selectedChartType] || selectedChartType;
+                    })()}
+                  </span>
                 </span>
-                生成與設定圖表
-              </span>
-              {chartOptions && (
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowSettings(!showSettings)}
-                  >
-                    <Settings className="h-4 w-4 mr-1" />
-                    {showSettings ? '隱藏設定' : '顯示設定'}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={copyCode}>
-                    <Copy className="h-4 w-4 mr-1" />
-                    複製程式碼
-                  </Button>
-                </div>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <Button 
-              onClick={generateChart}
-              disabled={isLoading || !fileData}
-              className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-all duration-300 transform hover:scale-105"
-            >
-              <Zap className="w-5 h-5 mr-2" />
-              {isLoading ? '生成中...' : '生成圖表'}
-            </Button>
-
-            {/* 圖表顯示區域 */}
-            <div className="w-full">
-              <ChartDisplay 
-                chartOptions={chartOptions} 
-                isLoading={isLoading}
-                setChartOptions={setChartOptions}
-              />
-            </div>
-
-            {/* 設定面板 */}
-            {showSettings && chartOptions && (
-              <>
-                <Separator />
-                <SettingsPanel 
-                  chartOptions={chartOptions}
-                  onOptionsChange={setChartOptions}
-                />
-              </>
-            )}
-
-            {/* 程式碼顯示 */}
-            {generatedCode && (
-              <Card className="bg-gray-900">
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-center">
-                    <Label className="text-sm font-semibold text-gray-300">
-                      生成的 Highcharts 設定碼
-                    </Label>
+                {chartOptions && (
+                  <div className="flex gap-2">
                     <Button
-                      variant="secondary"
+                      variant="outline"
                       size="sm"
-                      onClick={copyCode}
-                      className="bg-gray-700 hover:bg-gray-600"
+                      onClick={() => setShowSettings(!showSettings)}
                     >
-                      <Copy className="h-3 w-3 mr-1" />
-                      複製
+                      <Settings className="h-4 w-4 mr-1" />
+                      {showSettings ? '隱藏設定' : '顯示設定'}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={copyCode}>
+                      <Copy className="h-4 w-4 mr-1" />
+                      複製程式碼
                     </Button>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <pre className="text-sm text-white overflow-x-auto max-h-48 bg-gray-800 p-4 rounded">
-                    <code>{generatedCode}</code>
-                  </pre>
-                </CardContent>
-              </Card>
-            )}
-          </CardContent>
-        </Card>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <Button 
+                onClick={generateChart}
+                disabled={isLoading || !fileData}
+                className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-all duration-300 transform hover:scale-105"
+              >
+                <Zap className="w-5 h-5 mr-2" />
+                {isLoading ? '生成中...' : '生成圖表'}
+              </Button>
+
+              {/* 圖表顯示區域 */}
+              <div className="w-full">
+                <ChartDisplay 
+                  chartOptions={chartOptions} 
+                  isLoading={isLoading}
+                  setChartOptions={setChartOptions}
+                />
+              </div>
+
+              {/* 設定面板 */}
+              {showSettings && chartOptions && (
+                <>
+                  <Separator />
+                  <SettingsPanel 
+                    chartOptions={chartOptions}
+                    onOptionsChange={setChartOptions}
+                  />
+                </>
+              )}
+
+              {/* 程式碼顯示 */}
+              {generatedCode && (
+                <Card className="bg-gray-900">
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-center">
+                      <Label className="text-sm font-semibold text-gray-300">
+                        生成的 Highcharts 設定碼
+                      </Label>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={copyCode}
+                        className="bg-gray-700 hover:bg-gray-600"
+                      >
+                        <Copy className="h-3 w-3 mr-1" />
+                        複製
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <pre className="text-sm text-white overflow-x-auto max-h-48 bg-gray-800 p-4 rounded">
+                      <code>{generatedCode}</code>
+                    </pre>
+                  </CardContent>
+                </Card>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
