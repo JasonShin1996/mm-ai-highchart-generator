@@ -14,23 +14,50 @@ import DataPreview from '@/components/DataPreview';
 import ChartDisplay from '@/components/ChartDisplay';
 import SettingsPanel from '@/components/SettingsPanel';
 import { useToast } from '@/hooks/use-toast';
-import { generateChartConfig } from '@/services/gemini';
+import { generateChartConfig, generateChartSuggestion } from '@/services/gemini';
 
 const Index = () => {
   const [fileData, setFileData] = useState(null);
   const [prompt, setPrompt] = useState('');
   const [chartOptions, setChartOptions] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSuggestionLoading, setIsSuggestionLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [generatedCode, setGeneratedCode] = useState('');
   const { toast } = useToast();
 
-  const handleFileUpload = useCallback((data) => {
+  const handleFileUpload = useCallback(async (data) => {
     setFileData(data);
     setChartOptions(null);
     setShowSettings(false);
+    setPrompt(''); // 清空之前的 prompt
     console.log('File data loaded:', data);
-  }, []);
+    
+    // 如果有數據，自動生成建議
+    if (data && data.data && data.data.length > 0 && data.meta && data.meta.fields) {
+      setIsSuggestionLoading(true);
+      try {
+        // 取前10筆數據作為樣本
+        const dataSample = data.data.slice(0, 10);
+        const suggestion = await generateChartSuggestion(data.meta.fields, dataSample);
+        setPrompt(suggestion.trim());
+        
+        toast({
+          title: "建議已生成",
+          description: "AI 已根據您的數據生成圖表建議，您可以直接使用或進行修改。",
+        });
+      } catch (error) {
+        console.error('生成建議失敗:', error);
+        toast({
+          title: "建議生成失敗",
+          description: "無法生成圖表建議，請手動描述您想要的圖表。",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSuggestionLoading(false);
+      }
+    }
+  }, [toast]);
 
   const handlePromptChange = useCallback((e) => {
     setPrompt(e.target.value);
@@ -300,15 +327,39 @@ const Index = () => {
                   2
                 </span>
                 描述您想看的圖表
+                {isSuggestionLoading && (
+                  <div className="ml-2 flex items-center text-sm text-blue-600">
+                    <div className="w-4 h-4 mr-1 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    AI 分析中...
+                  </div>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Textarea
-                value={prompt}
-                onChange={handlePromptChange}
-                placeholder="請幫我畫出堆疊柱狀圖，X軸是Date、但不要顯示title text，Y軸分別使用A、B、C，顏色依序使用#84C3E0 , #30617D, #D97871，Y軸 title 的text = 金額 (億元)，Title = 中國-歷年財政預算赤字總額，Legend放在最下面、不要有border"
-                className="min-h-[150px]"
-              />
+              <div className="space-y-3">
+                {isSuggestionLoading && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center text-sm text-blue-700">
+                      <div className="w-4 h-4 mr-2 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                      正在分析您的數據並生成圖表建議...
+                    </div>
+                  </div>
+                )}
+                <Textarea
+                  value={prompt}
+                  onChange={handlePromptChange}
+                  placeholder={isSuggestionLoading 
+                    ? "正在為您生成建議..." 
+                    : "請幫我畫出堆疊柱狀圖，X軸是Date、但不要顯示title text，Y軸分別使用A、B、C，顏色依序使用#84C3E0 , #30617D, #D97871，Y軸 title 的text = 金額 (億元)，Title = 中國-歷年財政預算赤字總額，Legend放在最下面、不要有border"}
+                  className="min-h-[150px]"
+                  disabled={isSuggestionLoading}
+                />
+                {prompt && !isSuggestionLoading && (
+                  <div className="text-sm text-green-600 bg-green-50 p-2 rounded">
+                    💡 AI 已根據您的數據生成建議，您可以直接使用或進行修改
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>
