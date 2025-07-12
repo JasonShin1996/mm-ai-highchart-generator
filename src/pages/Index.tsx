@@ -26,19 +26,53 @@ const Index = () => {
   const [generatedCode, setGeneratedCode] = useState('');
   const { toast } = useToast();
 
+  // 優化數據精度以減少傳送量
+  const optimizeDataPrecision = useCallback((data) => {
+    return data.map(row => {
+      const processedRow = {};
+      for (const [key, value] of Object.entries(row)) {
+        if (typeof value === 'number') {
+          // 浮點數限制為4位小數
+          processedRow[key] = Math.round(value * 10000) / 10000;
+        } else if (typeof value === 'string' && !isNaN(parseFloat(value))) {
+          // 檢查是否為日期格式 (YYYY-MM-DD, YYYY/MM/DD, MM/DD/YYYY 等)
+          const datePattern = /^\d{4}[-/]\d{1,2}[-/]\d{1,2}$|^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/;
+          // 檢查是否為時間格式 (HH:MM, HH:MM:SS)
+          const timePattern = /^\d{1,2}:\d{2}(:\d{2})?$/;
+          // 檢查是否為日期時間格式
+          const dateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
+          
+          if (datePattern.test(value) || timePattern.test(value) || dateTimePattern.test(value)) {
+            // 保持原始日期/時間字串
+            processedRow[key] = value;
+          } else {
+            // 只有純數字字符串才進行精度處理
+            const numValue = parseFloat(value);
+            processedRow[key] = Math.round(numValue * 10000) / 10000;
+          }
+        } else {
+          processedRow[key] = value;
+        }
+      }
+      return processedRow;
+    });
+  }, []);
+
   const handleFileUpload = useCallback(async (data) => {
     setFileData(data);
     setChartOptions(null);
     setShowSettings(false);
     setPrompt(''); // 清空之前的 prompt
+    setGeneratedCode(''); // 清空之前的生成代碼
     console.log('File data loaded:', data);
     
     // 如果有數據，自動生成建議
     if (data && data.data && data.data.length > 0 && data.meta && data.meta.fields) {
       setIsSuggestionLoading(true);
       try {
-        // 取前10筆數據作為樣本
-        const dataSample = data.data.slice(0, 10);
+        // 取前10筆數據作為樣本，並優化精度
+        const rawSample = data.data.slice(0, 10);
+        const dataSample = optimizeDataPrecision(rawSample);
         const suggestion = await generateChartSuggestion(data.meta.fields, dataSample);
         setPrompt(suggestion.trim());
         
@@ -57,11 +91,42 @@ const Index = () => {
         setIsSuggestionLoading(false);
       }
     }
-  }, [toast]);
+  }, [toast, optimizeDataPrecision]);
 
   const handlePromptChange = useCallback((e) => {
     setPrompt(e.target.value);
   }, []);
+
+  // 處理 LLM 響應，判斷是否使用時間序列數據組裝
+  const processLLMResponse = (config, fullData) => {
+    if (config._time_series_data) {
+      try {
+        console.log('🔄 使用時間序列數據組裝邏輯');
+        config.series = assembleTimeSeriesData(fullData, config._assembly_instructions);
+        delete config._time_series_data;
+        delete config._assembly_instructions;
+      } catch (error) {
+        console.error('時間序列數據組裝失敗，使用原始配置:', error);
+        delete config._time_series_data;
+        delete config._assembly_instructions;
+      }
+    }
+    return config;
+  };
+
+  // 組裝時間序列數據 - 根據用戶反饋修正
+  const assembleTimeSeriesData = (fullData, instructions) => {
+    const { timeColumn, series } = instructions;
+    
+    return series.map(seriesConfig => ({
+      name: seriesConfig.name,        // 使用 LLM 提供的友善名稱
+      type: seriesConfig.type,        // 使用 LLM 決定的圖表類型
+      data: fullData.map(row => [
+        new Date(row[timeColumn]).getTime(),
+        parseFloat(row[seriesConfig.column]) || 0
+      ])
+    }));
+  };
 
   const generateChart = async () => {
     if (!fileData || !fileData.data || fileData.data.length === 0) {
@@ -87,28 +152,69 @@ const Index = () => {
 
     try {
       const headers = fileData.meta.fields.join(', ');
-      const dataSample = JSON.stringify(fileData.data.slice(0, 5000), null, 2);
       
-      const fullPrompt = `
+      // 智能數據採樣：大數據集只發送少量樣本，並優化精度
+      const rawSample = fileData.data.length > 100 
+        ? fileData.data.slice(0, 50)  // 大數據集只發送 50 筆樣本
+        : fileData.data;               // 小數據集發送全部
+      
+      const optimizedSample = optimizeDataPrecision(rawSample);
+      const dataSample = JSON.stringify(optimizedSample, null, 2);
+      
+      const smartPrompt = `
         你是一位精通 Highcharts 的數據可視化專家。
+
+        第一步：判斷處理策略
+        數據量：${fileData.data.length} 行
+        如果數據量大（>100行）且適合自動組裝（時間序列+多數值欄位），請在JSON最前面加上：
+        {
+          "_time_series_data": true,
+          "_assembly_instructions": {
+            "timeColumn": "時間欄位名稱",
+            "series": [
+              {"column": "數值欄位1", "name": "友善顯示名稱1", "type": "根據用戶需求決定"},
+              {"column": "數值欄位2", "name": "友善顯示名稱2", "type": "根據用戶需求決定"}
+            ]
+          },
+          ... 其他配置
+        }
+
+        重要：如果使用自動組裝，最終的 series 將會是類似以下格式，但欄位名稱會是使用者提供的欄位名稱：
+        "series": [
+          {
+            "data": [[1546560000000.0, 0.0], [1547164800000.0, 0.0], [1547769600000.0, 0.0], ...],
+            "name": "USDC",
+            "type": "area"
+          },
+          {
+            "data": [[1546560000000.0, 1.8984], [1547164800000.0, 1.9733], [1547769600000.0, 2.0499], ...],
+            "name": "USDT", 
+            "type": "area"
+          }
+        ]
+        其中 data 是 [時間戳毫秒, 數值] 的二維陣列，每個 series 包含 data、name、type 三個屬性。
+
+        否則請按照以下完整指令處理：
+
         任務: 根據使用者提供的數據和自然語言需求，產生一個完整且有效的 Highcharts JSON 設定物件。
         限制:
         1. 你的回覆 **必須** 只包含一個格式完全正確的 JSON 物件。
         2. **絕對不要** 在 JSON 物件前後包含任何文字、註解、或 markdown 語法。
         3. **不要** 使用 \`data.csv\` 或外部 URL 來載入數據。所有需要的數據都應該直接寫在 \`series\` 設定中。
         4. 根據下方提供的數據範例來決定 x 軸 (categories/datetime) 和 y 軸 (data) 的對應關係。
+        
         以下是使用者提供的資訊：
         ---
         數據的欄位 (Headers): ${headers}
         ---
-        數據的前 5000 筆範例: ${dataSample}
+        數據範例: ${dataSample}
         ---
         使用者的需求: "${prompt}"
         ---
         現在，請產生 Highcharts JSON 設定物件。
       `;
 
-      const chartConfigString = await generateChartConfig(fullPrompt);
+      const chartConfigString = await generateChartConfig(smartPrompt);
       let configStr = chartConfigString.replace(/^```json\s*/, '').replace(/```$/, '');
       const firstBracket = configStr.indexOf('{');
       const lastBracket = configStr.lastIndexOf('}');
@@ -119,10 +225,40 @@ const Index = () => {
       
       configStr = configStr.substring(firstBracket, lastBracket + 1);
       const aiChartOptions = JSON.parse(configStr);
+      
+      // 處理 LLM 響應，檢查是否需要時間序列數據組裝
+      const processedOptions = processLLMResponse(aiChartOptions, fileData.data);
 
             // 動態生成 MM_THEME 配置
-      const generateMMTheme = (size = 'standard') => {
+      const generateMMTheme = (size = 'standard', chartOptions = null) => {
         const isLarge = size === 'large';
+        
+        // 檢查圖表類型，決定是否需要 lineWidth
+        const needsLineWidth = () => {
+          if (!chartOptions || !chartOptions.series) return false;
+          
+          // 檢查是否有任何 series 使用線條類型
+          const lineBasedTypes = ['line', 'spline', 'area', 'areaspline'];
+          return chartOptions.series.some(series => 
+            lineBasedTypes.includes(series.type)
+          );
+        };
+        
+        // 根據圖表類型決定 plotOptions
+        const getPlotOptions = () => {
+          const seriesOptions: any = {
+            'marker': {'enabled': false},
+          };
+          
+          // 只對需要線條的圖表類型添加 lineWidth
+          if (needsLineWidth()) {
+            seriesOptions.lineWidth = 3;
+          }
+          
+          return {
+            'series': seriesOptions
+          };
+        };
         
         return {
           'lang': {'numericSymbols': ["K", "M", "B", "T", "P", "E"]},
@@ -190,51 +326,46 @@ const Index = () => {
               'fontWeight': '600'
             }
           },
-          'plotOptions': {
-            'series': {
-              'lineWidth': 3,
-              'marker': {'enabled': false},
-            }
-          },
+          'plotOptions': getPlotOptions(),
           'credits': {'enabled': false},
           'exporting': {'enabled': false}
         };
       };
 
       // 根據 AI 回傳的圖表尺寸決定使用哪個主題
-      const chartSize = aiChartOptions.chart?.width === 975 && aiChartOptions.chart?.height === 650 ? 'large' : 'standard';
-      const MM_THEME = generateMMTheme(chartSize);
+      const chartSize = processedOptions.chart?.width === 975 && processedOptions.chart?.height === 650 ? 'large' : 'standard';
+      const MM_THEME = generateMMTheme(chartSize, processedOptions);
 
       // 合併 AI 設定與 MM_THEME 樣式
       const finalChartOptions = {
-        ...aiChartOptions,
+        ...processedOptions,
         lang: MM_THEME.lang,
         colors: MM_THEME.colors,
         chart: { 
-          ...aiChartOptions.chart, 
+          ...processedOptions.chart, 
           ...MM_THEME.chart
         },
         title: { 
-          ...aiChartOptions.title, 
+          ...processedOptions.title, 
           style: MM_THEME.title.style
         },
         subtitle: { 
-          ...aiChartOptions.subtitle, 
+          ...processedOptions.subtitle, 
           ...MM_THEME.subtitle
         },
         xAxis: { 
-          ...(Array.isArray(aiChartOptions.xAxis) ? aiChartOptions.xAxis[0] : aiChartOptions.xAxis), 
+          ...(Array.isArray(processedOptions.xAxis) ? processedOptions.xAxis[0] : processedOptions.xAxis), 
           ...MM_THEME.xAxis
         },
         legend: { 
-          ...aiChartOptions.legend, 
+          ...processedOptions.legend, 
           ...MM_THEME.legend
         },
         plotOptions: {
-          ...aiChartOptions.plotOptions,
+          ...processedOptions.plotOptions,
           ...MM_THEME.plotOptions,
           series: {
-            ...aiChartOptions.plotOptions?.series,
+            ...processedOptions.plotOptions?.series,
             ...MM_THEME.plotOptions.series
           }
         },
@@ -244,8 +375,8 @@ const Index = () => {
 
       const yAxisTemplate = MM_THEME.yAxis;
 
-      if (Array.isArray(aiChartOptions.yAxis)) {
-        finalChartOptions.yAxis = aiChartOptions.yAxis.map(axis => ({
+      if (Array.isArray(processedOptions.yAxis)) {
+        finalChartOptions.yAxis = processedOptions.yAxis.map(axis => ({
           ...axis, 
           ...yAxisTemplate, 
           labels: { ...axis.labels, style: yAxisTemplate.labels.style }, 
@@ -253,10 +384,10 @@ const Index = () => {
         }));
       } else {
         finalChartOptions.yAxis = { 
-          ...(aiChartOptions.yAxis || {}), 
+          ...(processedOptions.yAxis || {}), 
           ...yAxisTemplate, 
-          labels: { ...(aiChartOptions.yAxis?.labels), style: yAxisTemplate.labels.style }, 
-          title: { ...(aiChartOptions.yAxis?.title), style: yAxisTemplate.title.style }
+          labels: { ...(processedOptions.yAxis?.labels), style: yAxisTemplate.labels.style }, 
+          title: { ...(processedOptions.yAxis?.title), style: yAxisTemplate.title.style }
         };
       }
 
