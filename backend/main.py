@@ -11,10 +11,16 @@ load_dotenv()
 
 app = FastAPI(title="Chart Wizard API", version="1.0.0")
 
-# 設置 CORS
+# 設置 CORS - 僅允許特定的來源
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080", "http://localhost:3000", "http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:8080", 
+        "http://localhost:3000", 
+        "http://localhost:5173",
+        "http://192.168.1.109:8080",  # 你的網路IP地址
+        # 如果需要其他IP，在這裡添加
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,14 +36,20 @@ class DataAnalysisRequest(BaseModel):
 class ChartResponse(BaseModel):
     result: str
 
+# 新增：結構化的圖表建議響應模型
+class ChartSuggestionResponse(BaseModel):
+    description: str
+    recommended_chart_type: str
+    confidence: float
+
 @app.get("/")
 async def root():
     return {"message": "Chart Wizard API is running"}
 
-@app.post("/api/analyze-data", response_model=ChartResponse)
+@app.post("/api/analyze-data", response_model=ChartSuggestionResponse)
 async def analyze_data(request: DataAnalysisRequest):
     """
-    分析數據並生成圖表建議的端點
+    分析數據並生成圖表建議的端點 - 返回結構化數據
     """
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -66,9 +78,28 @@ async def analyze_data(request: DataAnalysisRequest):
         4. 如果有多個數值欄位，建議使用堆疊圖或分組圖
         5. 為圖表建議一個有意義的標題
         6. 建議適當的軸標題
-        7. 只回傳一個完整的描述句子，不要包含額外的解釋
         
-        請直接回傳圖表描述建議：
+        **重要：請同時返回推薦的圖表類型代碼。**
+        
+        可選的圖表類型代碼：
+        - "line" (折線圖) - 適合時間序列數據
+        - "column" (柱狀圖) - 適合分類比較
+        - "area" (面積圖) - 適合時間序列累積數據
+        - "pie" (圓餅圖) - 適合比例分布
+        - "scatter" (散佈圖) - 適合兩變量關係
+        - "stacked_column" (堆疊柱狀圖) - 適合多層級分類數據
+        - "spline" (平滑線圖) - 適合平滑趨勢展示
+        - "donut" (環形圖) - 適合比例分布的變體
+        
+        請返回以下格式的JSON：
+        {{
+            "description": "完整的圖表描述建議",
+            "recommended_chart_type": "推薦的圖表類型代碼",
+            "confidence": 0.85
+        }}
+        
+        其中 description 是完整的圖表描述句子，recommended_chart_type 是上述8種類型之一，confidence 是0-1之間的置信度。
+        只返回JSON，不要包含任何額外文字。
     """
     
     # Gemini API 設置
@@ -76,7 +107,7 @@ async def analyze_data(request: DataAnalysisRequest):
     
     payload = {
         "contents": [{"role": "user", "parts": [{"text": analysis_prompt}]}],
-        "generationConfig": {"responseMimeType": "text/plain"}
+        "generationConfig": {"responseMimeType": "application/json"}
     }
     
     try:
@@ -103,7 +134,35 @@ async def analyze_data(request: DataAnalysisRequest):
                 result["candidates"][0]["content"].get("parts") and 
                 result["candidates"][0]["content"]["parts"][0].get("text")):
                 
-                return ChartResponse(result=result["candidates"][0]["content"]["parts"][0]["text"])
+                # 解析 JSON 回應
+                llm_response = result["candidates"][0]["content"]["parts"][0]["text"]
+                try:
+                    parsed_response = json.loads(llm_response)
+                    
+                    # 驗證回應格式
+                    if not all(key in parsed_response for key in ["description", "recommended_chart_type", "confidence"]):
+                        raise ValueError("回應格式不完整")
+                    
+                    # 驗證圖表類型
+                    valid_types = ["line", "column", "area", "pie", "scatter", "stacked_column", "spline", "donut"]
+                    if parsed_response["recommended_chart_type"] not in valid_types:
+                        # 如果類型無效，使用預設值
+                        parsed_response["recommended_chart_type"] = "column"
+                        parsed_response["confidence"] = 0.5
+                    
+                    return ChartSuggestionResponse(
+                        description=parsed_response["description"],
+                        recommended_chart_type=parsed_response["recommended_chart_type"],
+                        confidence=float(parsed_response["confidence"])
+                    )
+                    
+                except (json.JSONDecodeError, ValueError, KeyError) as e:
+                    # 如果解析失敗，返回預設值
+                    return ChartSuggestionResponse(
+                        description="請根據您的數據特性描述想要的圖表類型和樣式",
+                        recommended_chart_type="column",
+                        confidence=0.5
+                    )
             else:
                 raise HTTPException(status_code=500, detail="Invalid or empty response from API")
                 

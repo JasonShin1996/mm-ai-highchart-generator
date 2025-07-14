@@ -29,6 +29,21 @@ const Index = () => {
   const [recommendedChartTypes, setRecommendedChartTypes] = useState<string[]>([]);
   const { toast } = useToast();
 
+  // 圖表類型名稱映射
+  const getChartTypeName = (chartType: string) => {
+    const chartTypeNames = {
+      'line': '折線圖',
+      'column': '柱狀圖',
+      'area': '面積圖',
+      'pie': '圓餅圖',
+      'scatter': '散佈圖',
+      'stacked_column': '堆疊柱狀圖',
+      'spline': '平滑線圖',
+      'donut': '環形圖'
+    };
+    return chartTypeNames[chartType] || chartType;
+  };
+
   // 優化數據精度以減少傳送量
   const optimizeDataPrecision = useCallback((data) => {
     return data.map(row => {
@@ -118,25 +133,7 @@ const Index = () => {
   // 處理圖表類型選擇
   const handleChartTypeSelect = useCallback((chartType: string) => {
     setSelectedChartType(chartType);
-    
-    // 根據選擇的圖表類型調整 prompt 提示
-    const chartTypePrompts = {
-      'line': '建議：描述您想要展示的時間序列數據，如「顯示過去12個月的銷售趨勢」',
-      'column': '建議：描述您想要比較的類別數據，如「比較不同地區的銷售額」',
-      'area': '建議：描述您想要強調的累積效果，如「顯示各產品線的營收貢獻」',
-      'pie': '建議：描述您想要展示的比例關係，如「顯示各部門的預算分配」',
-      'scatter': '建議：描述您想要探索的兩個變量關係，如「分析價格與銷量的關係」',
-      'stacked_column': '建議：描述您想要展示的分組和組成，如「顯示各季度不同產品的銷售構成」',
-      'spline': '建議：描述您想要展示的平滑趨勢，如「顯示股價的平滑波動趨勢」',
-      'donut': '建議：描述您想要展示的比例關係，如「顯示市場份額分布」'
-    };
-    
-    // 如果當前 prompt 是空的或是預設建議，則更新提示
-    if (!prompt.trim() || prompt.includes('建議：')) {
-      // 暫時不直接修改 prompt，讓用戶看到建議
-      console.log('Chart type selected:', chartType);
-    }
-  }, [prompt]);
+  }, []);
 
   const handleFileUpload = useCallback(async (data) => {
     setFileData(data);
@@ -160,11 +157,23 @@ const Index = () => {
         const rawSample = data.data.slice(0, 10);
         const dataSample = optimizeDataPrecision(rawSample);
         const suggestion = await generateChartSuggestion(data.meta.fields, dataSample);
-        setPrompt(suggestion.trim());
+        console.log('收到的建議:', suggestion); // 調試用
+        
+        // 容錯處理：檢查 suggestion 格式
+        if (!suggestion || typeof suggestion !== 'object') {
+          throw new Error('後端返回格式錯誤');
+        }
+        
+        const description = suggestion.description || '請根據您的數據特性描述想要的圖表類型和樣式';
+        const chartType = suggestion.recommended_chart_type || 'column';
+        const confidence = suggestion.confidence || 0.5;
+        
+        setPrompt(description.trim());
+        setSelectedChartType(chartType); // 自動選擇推薦的圖表類型
         
         toast({
           title: "建議已生成",
-          description: "AI 已根據您的數據生成圖表建議和推薦類型，請選擇圖表類型後進行描述。",
+          description: `AI 已根據您的數據生成圖表建議，並自動選擇了 ${getChartTypeName(chartType)} (置信度: ${Math.round(confidence * 100)}%)`,
         });
       } catch (error) {
         console.error('生成建議失敗:', error);
@@ -183,24 +192,74 @@ const Index = () => {
     setPrompt(e.target.value);
   }, []);
 
-  // 處理 LLM 響應，判斷是否使用時間序列數據組裝
-  const processLLMResponse = (config, fullData) => {
-    if (config._time_series_data) {
-      try {
-        console.log('🔄 使用時間序列數據組裝邏輯');
-        config.series = assembleTimeSeriesData(fullData, config._assembly_instructions);
-        
-        // 添加標記，表示數據已經組裝完成
-        config._data_assembled = true;
-        delete config._time_series_data;
-        delete config._assembly_instructions;
-      } catch (error) {
-        console.error('時間序列數據組裝失敗，使用原始配置:', error);
-        delete config._time_series_data;
-        delete config._assembly_instructions;
+  // 解析字符串格式的JavaScript函數
+  const parseStringFunctions = (obj) => {
+    if (!obj || typeof obj !== 'object') return obj;
+    
+    // 如果是數組，遞歸處理每個元素
+    if (Array.isArray(obj)) {
+      return obj.map(item => parseStringFunctions(item));
+    }
+    
+    // 創建新對象避免直接修改原對象
+    const result = {};
+    
+    for (const [key, value] of Object.entries(obj)) {
+      if (typeof value === 'string' && key === 'formatter') {
+        // 檢查是否為函數字符串格式
+        const functionPattern = /^function\s*\([^)]*\)\s*\{[\s\S]*\}$/;
+        if (functionPattern.test(value.trim())) {
+          try {
+            // 安全地轉換函數字符串為實際函數
+            // 使用 Function 構造器比 eval 更安全
+            const functionMatch = value.trim().match(/^function\s*\(([^)]*)\)\s*\{([\s\S]*)\}$/);
+            if (functionMatch) {
+              const params = functionMatch[1].trim();
+              const body = functionMatch[2].trim();
+              result[key] = new Function(params, body);
+              console.log(`🔄 轉換 formatter 函數: ${key}`);
+            } else {
+              result[key] = value; // 如果無法解析，保持原值
+            }
+          } catch (error) {
+            console.error(`⚠️ 無法轉換 formatter 函數 ${key}:`, error);
+            result[key] = value; // 轉換失敗，保持原值
+          }
+        } else {
+          result[key] = value;
+        }
+      } else if (typeof value === 'object' && value !== null) {
+        // 遞歸處理嵌套對象
+        result[key] = parseStringFunctions(value);
+      } else {
+        result[key] = value;
       }
     }
-    return config;
+    
+    return result;
+  };
+
+  // 處理 LLM 響應，判斷是否使用時間序列數據組裝
+  const processLLMResponse = (config, fullData) => {
+    // 首先解析字符串格式的函數
+    let processedConfig = parseStringFunctions(config);
+    
+    if (processedConfig._time_series_data) {
+      try {
+        console.log('🔄 使用時間序列數據組裝邏輯');
+        processedConfig.series = assembleTimeSeriesData(fullData, processedConfig._assembly_instructions);
+        
+        // 添加標記，表示數據已經組裝完成
+        processedConfig._data_assembled = true;
+        delete processedConfig._time_series_data;
+        delete processedConfig._assembly_instructions;
+      } catch (error) {
+        console.error('時間序列數據組裝失敗，使用原始配置:', error);
+        delete processedConfig._time_series_data;
+        delete processedConfig._assembly_instructions;
+      }
+    }
+    return processedConfig;
   };
 
   // 組裝時間序列數據 - 根據用戶反饋修正
@@ -310,6 +369,49 @@ const Index = () => {
         - 預設不添加數據點標記 ("marker": {"enabled": false})，除非用戶特別指名要添加
         - 如有多個數據系列，確保圖例清晰
         
+        
+        **正確範例：**
+        \`\`\`json
+        // 時間序列
+        {
+          "chart": {"type": "line"},
+          "title": {"text": "標題"},
+          "xAxis": {"type": "datetime"},
+          "yAxis": {"title": {"text": "Y軸標題"}},
+          "series": [{
+            "name": "系列名",
+            "type": "line",
+            "lineWidth": 3,
+            "marker": {"enabled": false},
+            "data": [[1609459200000, 120], [1612137600000, 135]]
+          }]
+        }
+        
+        // 類別數據
+        {
+          "chart": {"type": "line"},
+          "title": {"text": "標題"},
+          "xAxis": {"type": "category", "categories": ["Q1", "Q2", "Q3", "Q4"]},
+          "yAxis": {"title": {"text": "Y軸標題"}},
+          "series": [{
+            "name": "系列名",
+            "type": "line",
+            "lineWidth": 3,
+            "marker": {"enabled": false},
+            "data": [85, 90, 88, 92]
+          }]
+        }
+        \`\`\`
+        
+        **避免錯誤：**
+        - chart: "line" ❌ → chart: {"type": "line"} ✅
+        - series: {...} ❌ → series: [{...}] ✅
+        - data: ["2023-01-01", 100] ❌ → data: [1672531200000, 100] ✅
+        
+        **數據格式：**
+        - 時間序列：data: [[時間戳毫秒, 數值], ...]
+        - 類別數據：xAxis.categories + data: [數值1, 數值2, ...]
+        
         現在，請產生專門用於線圖的 Highcharts JSON 設定物件。
       `,
       
@@ -324,6 +426,44 @@ const Index = () => {
         - 如果數據數量不多的時候，添加數據標籤以提高可讀性，數據數量多的時候，則不添加數據標籤
         - 設置適當的 Y 軸範圍和標籤
         
+        **正確範例：**
+        \`\`\`json
+        // 時間序列
+        {
+          "chart": {"type": "column"},
+          "title": {"text": "標題"},
+          "xAxis": {"type": "datetime"},
+          "yAxis": {"title": {"text": "Y軸標題"}},
+          "series": [{
+            "name": "系列名",
+            "type": "column",
+            "data": [[1609459200000, 120], [1612137600000, 135]]
+          }]
+        }
+        
+        // 類別數據
+        {
+          "chart": {"type": "column"},
+          "title": {"text": "標題"},
+          "xAxis": {"type": "category", "categories": ["Q1", "Q2", "Q3", "Q4"]},
+          "yAxis": {"title": {"text": "Y軸標題"}},
+          "series": [{
+            "name": "系列名",
+            "type": "column",
+            "data": [85, 90, 88, 92]
+          }]
+        }
+        \`\`\`
+        
+        **避免錯誤：**
+        - chart: "column" ❌ → chart: {"type": "column"} ✅
+        - series: {...} ❌ → series: [{...}] ✅
+        - data: ["2023-01-01", 100] ❌ → data: [1672531200000, 100] ✅
+        
+        **數據格式：**
+        - 時間序列：data: [[時間戳毫秒, 數值], ...]
+        - 類別數據：xAxis.categories + data: [數值1, 數值2, ...]
+        
         現在，請產生專門用於柱狀圖的 Highcharts JSON 設定物件。
       `,
       
@@ -336,6 +476,46 @@ const Index = () => {
         - 確保顏色搭配協調
         - 考慮使用 stacking 來展示累積效果
         - 設置平滑的曲線效果
+        
+        **正確範例：**
+        \`\`\`json
+        // 時間序列
+        {
+          "chart": {"type": "area"},
+          "title": {"text": "標題"},
+          "xAxis": {"type": "datetime"},
+          "yAxis": {"title": {"text": "Y軸標題"}},
+          "series": [{
+            "name": "系列名",
+            "type": "area",
+            "fillOpacity": 0.5,
+            "data": [[1609459200000, 120], [1612137600000, 135]]
+          }]
+        }
+        
+        // 類別數據
+        {
+          "chart": {"type": "area"},
+          "title": {"text": "標題"},
+          "xAxis": {"type": "category", "categories": ["Q1", "Q2", "Q3", "Q4"]},
+          "yAxis": {"title": {"text": "Y軸標題"}},
+          "series": [{
+            "name": "系列名",
+            "type": "area",
+            "fillOpacity": 0.5,
+            "data": [85, 90, 88, 92]
+          }]
+        }
+        \`\`\`
+        
+        **避免錯誤：**
+        - chart: "area" ❌ → chart: {"type": "area"} ✅
+        - series: {...} ❌ → series: [{...}] ✅
+        - data: ["2023-01-01", 100] ❌ → data: [1672531200000, 100] ✅
+        
+        **數據格式：**
+        - 時間序列：data: [[時間戳毫秒, 數值], ...]
+        - 類別數據：xAxis.categories + data: [數值1, 數值2, ...]
         
         現在，請產生專門用於面積圖的 Highcharts JSON 設定物件。
       `,
@@ -351,6 +531,43 @@ const Index = () => {
         - 考慮使用 allowPointSelect 讓用戶互動
         - 設置適當的顏色對比
         
+        **正確範例：**
+        \`\`\`json
+        // 基本圓餅圖
+        {
+          "chart": {"type": "pie"},
+          "title": {"text": "標題"},
+          "plotOptions": {
+            "pie": {
+              "allowPointSelect": true,
+              "cursor": "pointer",
+              "dataLabels": {"enabled": true, "format": "{point.name}: {point.percentage:.1f}%"}
+            }
+          },
+          "series": [{
+            "name": "比例",
+            "data": [
+              {"name": "類別A", "y": 45.0},
+              {"name": "類別B", "y": 26.8},
+              {"name": "類別C", "y": 12.8},
+              {"name": "類別D", "y": 8.5},
+              {"name": "其他", "y": 6.9}
+            ]
+          }]
+        }
+        \`\`\`
+        
+        **避免錯誤：**
+        - chart: "pie" ❌ → chart: {"type": "pie"} ✅
+        - series: {...} ❌ → series: [{...}] ✅
+        - data: ["A", 45] ❌ → data: [{"name": "A", "y": 45}] ✅
+        - series 中設置 type: "pie" ❌ → chart 層級已設置，series 中不需要 ✅
+        
+        **數據格式：**
+        - 使用 name-value pairs: {"name": "類別名", "y": 數值}
+        - 不需要 xAxis/yAxis 設置
+        - 一個 series 包含所有數據點
+        
         現在，請產生專門用於餅圖的 Highcharts JSON 設定物件。
       `,
       
@@ -358,12 +575,86 @@ const Index = () => {
         ${basePrompt}
         
         **散佈圖專門指令：**
-        - 專注於兩個變量之間的關係
-        - 確保 X 和 Y 軸都使用數值數據
-        - 設置適當的散點大小和透明度
-        - 考慮添加趨勢線或回歸線
-        - 如有分類，使用不同顏色或形狀區分
-        - 設置適當的軸範圍以突出相關性
+        - **關鍵**：tooltip 配置必須在全局層級
+        - 日期時間數據使用 xAxis.type: "datetime" 和時間戳格式
+        - 預設使用 circle symbol，可設置 radius 調整大小
+        
+        **正確範例：**
+        \`\`\`json
+        // 基本散佈圖
+        {
+          "chart": {"type": "scatter"},
+          "title": {"text": "標題"},
+          "xAxis": {"title": {"text": "X軸標題"}},
+          "yAxis": {"title": {"text": "Y軸標題"}},
+          "tooltip": {"pointFormat": "X: {point.x}<br>Y: {point.y}"},
+          "plotOptions": {
+            "scatter": {
+              "marker": {"radius": 5, "symbol": "circle"},
+            },
+            "series": {
+              "marker": {"enabled": true},
+            }
+          },
+          "series": [{
+            "name": "數據點",
+            "data": [[10, 15], [20, 25], [30, 35]]
+          }]
+        }
+        
+        // 日期時間散佈圖
+        {
+          "chart": {"type": "scatter"},
+          "xAxis": {"type": "datetime"},
+          "tooltip": {"pointFormat": "<b>{point.name}</b><br>日期: {point.x:%Y-%m-%d}<br>數值: {point.y}"},
+          "plotOptions": {
+            "scatter": {
+              "marker": {"radius": 5, "symbol": "circle"}
+            },
+            "series": {
+              "marker": {"enabled": true},
+            }
+          },
+          "series": [{
+            "name": "數據點",
+            "data": [
+              {"x": 1609459200000, "y": 120, "name": "點A"},
+              {"x": 1612137600000, "y": 135, "name": "點B"}
+            ]
+          }]
+        }
+        \`\`\`
+
+        **🚨 散佈圖致命錯誤警告 🚨**
+        **絕對不能使用 plotOptions.series.marker.enabled: false**
+        **這會讓所有散點消失，圖表完全無法顯示！**
+        
+        **🚨 絕對不能這樣做 🚨**
+        \`\`\`json
+        {
+          "plotOptions": {
+            "scatter": {
+              "marker": {"radius": 5, "symbol": "circle"}  // 正確設置
+            },
+            "series": {
+              "marker": {"enabled": false}  // ❌ 致命錯誤！會隱藏所有散點
+            }
+          }
+        }
+        \`\`\`
+        
+        **🚨 致命錯誤防止清單 🚨**
+        - **絕對禁止**：plotOptions.series.marker.enabled: false (會隱藏所有散點!)
+        - **絕對禁止**：任何 plotOptions.series 設置，散佈圖只能用 plotOptions.scatter
+        - **絕對禁止**：在任何地方使用 marker.enabled: false
+        - 數據格式：[[x1, y1], [x2, y2], ...]
+        - 可用symbols：circle, square, diamond, triangle, triangle-down
+        - 日期時間數據：{"x": 時間戳, "y": 數值, "name": "點名"}
+        
+        **檢查清單：**
+        - [ ] 確認沒有 plotOptions.series 設置
+        - [ ] 確認沒有 marker.enabled: false
+        - [ ] 確認有 plotOptions.scatter.marker 設置
         
         現在，請產生專門用於散點圖的 Highcharts JSON 設定物件。
       `,
@@ -379,6 +670,61 @@ const Index = () => {
         - 考慮添加總計標籤
         - 設置清晰的圖例說明
         
+        **正確範例：**
+        \`\`\`json
+        // 時間序列
+        {
+          "chart": {"type": "column"},
+          "title": {"text": "標題"},
+          "xAxis": {"type": "datetime"},
+          "yAxis": {"title": {"text": "Y軸標題"}},
+          "plotOptions": {"column": {"stacking": "normal"}},
+          "series": [
+            {
+              "name": "系列A",
+              "type": "column",
+              "data": [[1609459200000, 120], [1612137600000, 135]]
+            },
+            {
+              "name": "系列B",
+              "type": "column", 
+              "data": [[1609459200000, 80], [1612137600000, 95]]
+            }
+          ]
+        }
+        
+        // 類別數據
+        {
+          "chart": {"type": "column"},
+          "title": {"text": "標題"},
+          "xAxis": {"type": "category", "categories": ["Q1", "Q2", "Q3", "Q4"]},
+          "yAxis": {"title": {"text": "Y軸標題"}},
+          "plotOptions": {"column": {"stacking": "normal"}},
+          "series": [
+            {
+              "name": "系列A",
+              "type": "column",
+              "data": [85, 90, 88, 92]
+            },
+            {
+              "name": "系列B", 
+              "type": "column",
+              "data": [45, 55, 50, 48]
+            }
+          ]
+        }
+        \`\`\`
+        
+        **避免錯誤：**
+        - chart: "column" ❌ → chart: {"type": "column"} ✅
+        - series: {...} ❌ → series: [{...}] ✅
+        - 忘記設置 plotOptions.column.stacking ❌ → 設置 "stacking": "normal" ✅
+        
+        **數據格式：**
+        - 時間序列：data: [[時間戳毫秒, 數值], ...]
+        - 類別數據：xAxis.categories + data: [數值1, 數值2, ...]
+        - 多個 series 用於不同堆疊層
+        
         現在，請產生專門用於堆疊柱狀圖的 Highcharts JSON 設定物件。
       `,
       
@@ -393,6 +739,48 @@ const Index = () => {
         - 確保線條粗細適中
         - 處理好時間序列數據
         
+        **正確範例：**
+        \`\`\`json
+        // 時間序列
+        {
+          "chart": {"type": "spline"},
+          "title": {"text": "標題"},
+          "xAxis": {"type": "datetime"},
+          "yAxis": {"title": {"text": "Y軸標題"}},
+          "series": [{
+            "name": "系列名",
+            "type": "spline",
+            "lineWidth": 3,
+            "marker": {"enabled": false},
+            "data": [[1609459200000, 120], [1612137600000, 135]]
+          }]
+        }
+        
+        // 類別數據
+        {
+          "chart": {"type": "spline"},
+          "title": {"text": "標題"},
+          "xAxis": {"type": "category", "categories": ["Q1", "Q2", "Q3", "Q4"]},
+          "yAxis": {"title": {"text": "Y軸標題"}},
+          "series": [{
+            "name": "系列名",
+            "type": "spline",
+            "lineWidth": 3,
+            "marker": {"enabled": false},
+            "data": [85, 90, 88, 92]
+          }]
+        }
+        \`\`\`
+        
+        **避免錯誤：**
+        - chart: "spline" ❌ → chart: {"type": "spline"} ✅
+        - series: {...} ❌ → series: [{...}] ✅
+        - data: ["2023-01-01", 100] ❌ → data: [1672531200000, 100] ✅
+        
+        **數據格式：**
+        - 時間序列：data: [[時間戳毫秒, 數值], ...]
+        - 類別數據：xAxis.categories + data: [數值1, 數值2, ...]
+        
         現在，請產生專門用於平滑線圖的 Highcharts JSON 設定物件。
       `,
       
@@ -406,6 +794,45 @@ const Index = () => {
         - 設置適當的數據標籤位置
         - 使用協調的顏色方案
         - 確保圖例清晰易讀
+        
+        **正確範例：**
+        \`\`\`json
+        // 基本環形圖
+        {
+          "chart": {"type": "pie"},
+          "title": {"text": "標題"},
+          "plotOptions": {
+            "pie": {
+              "innerSize": "60%",
+              "allowPointSelect": true,
+              "cursor": "pointer",
+              "dataLabels": {"enabled": true, "format": "{point.name}: {point.percentage:.1f}%"}
+            }
+          },
+          "series": [{
+            "name": "比例",
+            "data": [
+              {"name": "類別A", "y": 45.0},
+              {"name": "類別B", "y": 26.8},
+              {"name": "類別C", "y": 12.8},
+              {"name": "類別D", "y": 8.5},
+              {"name": "其他", "y": 6.9}
+            ]
+          }]
+        }
+        \`\`\`
+        
+        **避免錯誤：**
+        - chart: "donut" ❌ → chart: {"type": "pie"} + innerSize ✅
+        - series: {...} ❌ → series: [{...}] ✅
+        - data: ["A", 45] ❌ → data: [{"name": "A", "y": 45}] ✅
+        - series 中設置 type: "pie" ❌ → chart 層級已設置，series 中不需要 ✅
+        
+        **數據格式：**
+        - 使用 name-value pairs: {"name": "類別名", "y": 數值}
+        - 不需要 xAxis/yAxis 設置
+        - 一個 series 包含所有數據點
+        - 使用 innerSize 創建中心空洞
         
         現在，請產生專門用於環形圖的 Highcharts JSON 設定物件。
       `
@@ -501,8 +928,23 @@ const Index = () => {
         
         // 根據圖表類型決定 plotOptions
         const getPlotOptions = () => {
+          // 檢查是否為散佈圖
+          const isScatterChart = () => {
+            if (!chartOptions) return false;
+            
+            // 檢查 chart.type
+            if (chartOptions.chart?.type === 'scatter') return true;
+            
+            // 檢查 series 中是否有 scatter 類型
+            if (chartOptions.series && Array.isArray(chartOptions.series)) {
+              return chartOptions.series.some(series => series.type === 'scatter');
+            }
+            
+            return false;
+          };
+          
           const seriesOptions: any = {
-            'marker': {'enabled': false},
+            'marker': {'enabled': isScatterChart() ? true : false},
           };
           
           // 只對需要線條的圖表類型添加 lineWidth

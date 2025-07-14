@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
 
 const SettingsPanel = ({ chartOptions, onOptionsChange }) => {
   const updateChartOptions = (path, value) => {
@@ -27,6 +28,25 @@ const SettingsPanel = ({ chartOptions, onOptionsChange }) => {
       newOptions.series[seriesIndex][property] = value;
       onOptionsChange(newOptions);
     }
+  };
+
+  const updateScatterPlotOptions = (path, value) => {
+    const newOptions = JSON.parse(JSON.stringify(chartOptions));
+    
+    // 確保 plotOptions.scatter 存在
+    if (!newOptions.plotOptions) newOptions.plotOptions = {};
+    if (!newOptions.plotOptions.scatter) newOptions.plotOptions.scatter = {};
+    
+    // 使用路徑更新嵌套對象
+    const keys = path.split('.');
+    let current = newOptions.plotOptions.scatter;
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (!current[keys[i]]) current[keys[i]] = {};
+      current = current[keys[i]];
+    }
+    current[keys[keys.length - 1]] = value;
+    
+    onOptionsChange(newOptions);
   };
 
   return (
@@ -268,6 +288,107 @@ const SettingsPanel = ({ chartOptions, onOptionsChange }) => {
                         </Select>
                       </div>
                     </div>
+
+                    {/* 散佈圖專用設置 */}
+                    {(series.type === 'scatter' || chartOptions.chart?.type === 'scatter') && (
+                      <div className="mt-3 pt-3 border-t border-gray-300">
+                        <div className="text-sm font-medium text-blue-600 mb-2">散佈圖設置</div>
+                        
+                        {/* Marker 設置 */}
+                        <div className="space-y-3">
+                          {/* Marker 顯示 */}
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`marker-enabled-${index}`}
+                              checked={chartOptions.plotOptions?.scatter?.marker?.enabled !== false}
+                              onCheckedChange={(checked) => updateScatterPlotOptions('marker.enabled', checked)}
+                            />
+                            <Label htmlFor={`marker-enabled-${index}`} className="text-sm">顯示標記點</Label>
+                          </div>
+
+                          {/* Marker 大小 */}
+                          <div className="space-y-1">
+                            <Label className="text-sm">標記點大小: {chartOptions.plotOptions?.scatter?.marker?.radius || 5}</Label>
+                            <Slider
+                              value={[chartOptions.plotOptions?.scatter?.marker?.radius || 5]}
+                              onValueChange={(value) => updateScatterPlotOptions('marker.radius', value[0])}
+                              max={20}
+                              min={1}
+                              step={1}
+                              className="w-full"
+                            />
+                          </div>
+
+                          {/* Marker 形狀 */}
+                          <div>
+                            <Label className="text-sm mb-1 block">標記點形狀</Label>
+                            <Select
+                              value={chartOptions.plotOptions?.scatter?.marker?.symbol || 'circle'}
+                              onValueChange={(value) => updateScatterPlotOptions('marker.symbol', value)}
+                            >
+                              <SelectTrigger className="h-8 text-sm">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="circle">圓形</SelectItem>
+                                <SelectItem value="square">方形</SelectItem>
+                                <SelectItem value="diamond">菱形</SelectItem>
+                                <SelectItem value="triangle">三角形</SelectItem>
+                                <SelectItem value="triangle-down">倒三角形</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Data Labels 設置 */}
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`dataLabels-enabled-${index}`}
+                                checked={chartOptions.plotOptions?.scatter?.dataLabels?.enabled === true}
+                                onCheckedChange={(checked) => updateScatterPlotOptions('dataLabels.enabled', checked)}
+                              />
+                              <Label htmlFor={`dataLabels-enabled-${index}`} className="text-sm">顯示數據標籤</Label>
+                            </div>
+
+                            {/* Data Labels 格式 */}
+                            {chartOptions.plotOptions?.scatter?.dataLabels?.enabled && (
+                              <div>
+                                <Label className="text-sm mb-1 block">標籤格式</Label>
+                                <Select
+                                  value={chartOptions.plotOptions?.scatter?.dataLabels?.format || '{point.name}'}
+                                  onValueChange={(value) => updateScatterPlotOptions('dataLabels.format', value)}
+                                >
+                                  <SelectTrigger className="h-8 text-sm">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="{point.name}">點名稱</SelectItem>
+                                    <SelectItem value="{point.x}, {point.y}">坐標 (X, Y)</SelectItem>
+                                    <SelectItem value="{point.y}">Y 值</SelectItem>
+                                    <SelectItem value="{point.x}">X 值</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+
+                            {/* Data Labels 字體大小 */}
+                            {chartOptions.plotOptions?.scatter?.dataLabels?.enabled && (
+                              <div className="space-y-1">
+                                <Label className="text-sm">標籤字體大小: {chartOptions.plotOptions?.scatter?.dataLabels?.style?.fontSize?.replace('px', '') || '9'}px</Label>
+                                <Slider
+                                  value={[parseInt(chartOptions.plotOptions?.scatter?.dataLabels?.style?.fontSize?.replace('px', '') || '9')]}
+                                  onValueChange={(value) => updateScatterPlotOptions('dataLabels.style.fontSize', `${value[0]}px`)}
+                                  max={16}
+                                  min={6}
+                                  step={1}
+                                  className="w-full"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </Card>
               ))}
