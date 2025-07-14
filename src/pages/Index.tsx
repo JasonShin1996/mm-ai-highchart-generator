@@ -1025,7 +1025,7 @@ const Index = () => {
           },
           'plotOptions': getPlotOptions(),
           'credits': {'enabled': false},
-          'exporting': {'enabled': false}
+          'exporting': {'enabled': true}
         };
       };
 
