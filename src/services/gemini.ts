@@ -9,8 +9,38 @@ interface ChartSuggestionResponse {
   confidence: number;
 }
 
+// 智能 API URL 檢測函數
+function getBackendUrl(): string {
+  let baseUrl = '';
+  
+  // 優先使用環境變數
+  if (import.meta.env.VITE_BACKEND_URL) {
+    baseUrl = import.meta.env.VITE_BACKEND_URL;
+    console.log('🔗 使用環境變數 VITE_BACKEND_URL:', baseUrl);
+  }
+  // Zeabur 環境檢測 (如果環境變數沒設定)
+  else if (typeof window !== 'undefined' && window.location.hostname.includes('.zeabur.app')) {
+    // 在 Zeabur 環境但沒有環境變數 - 給出錯誤提示
+    console.error('❌ 在 Zeabur 環境中但沒有設定 VITE_BACKEND_URL 環境變數！');
+    console.error('請在 Zeabur 前端服務中設定 VITE_BACKEND_URL=https://mm-ai-highchart-backend.zeabur.app');
+    // 嘗試使用預設的後端 URL 作為緊急回退
+    baseUrl = 'https://mm-ai-highchart-backend.zeabur.app';
+    console.warn('🚨 使用緊急回退 URL:', baseUrl);
+  }
+  // 本地開發環境
+  else {
+    baseUrl = 'http://localhost:8000';
+    console.log('🏠 使用本地開發環境 URL:', baseUrl);
+  }
+  
+  // 🔧 修復雙斜線問題：確保 URL 不以斜線結尾
+  const finalUrl = baseUrl.replace(/\/$/, '');
+  console.log('🎯 最終 API URL:', finalUrl);
+  return finalUrl;
+}
+
 export async function generateChartConfig(prompt: string): Promise<string> {
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+  const backendUrl = getBackendUrl();
   
   const response = await fetch(`${backendUrl}/api/generate-chart`, {
     method: 'POST',
@@ -37,7 +67,7 @@ export async function generateChartConfig(prompt: string): Promise<string> {
 }
 
 export async function generateChartSuggestion(headers: string[], dataSample: any[]): Promise<ChartSuggestionResponse> {
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+  const backendUrl = getBackendUrl();
   
   console.log('發送請求到:', `${backendUrl}/api/analyze-data`); // 調試
   console.log('發送的數據:', { headers, data_sample: dataSample }); // 調試
@@ -96,7 +126,7 @@ interface ChartAnalysisResponse {
 }
 
 export async function generateChartAnalysis(headers: string[], dataSample: any[]): Promise<ChartAnalysisResponse> {
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+  const backendUrl = getBackendUrl();
   
   const response = await fetch(`${backendUrl}/api/analyze-chart-types`, {
     method: 'POST',
@@ -127,7 +157,7 @@ export async function generateChartAnalysis(headers: string[], dataSample: any[]
 
 // 新增：根據圖表類型生成特定描述建議
 export async function generateChartTypeDescription(chartType: string, headers: string[], dataSample: any[]): Promise<string> {
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+  const backendUrl = getBackendUrl();
   
   const response = await fetch(`${backendUrl}/api/generate-chart-description`, {
     method: 'POST',
@@ -159,7 +189,7 @@ export async function generateChartTypeDescription(chartType: string, headers: s
 
 // 新增：根據用戶描述推薦適合的圖表類型
 export async function analyzeDescriptionForChartTypes(description: string, headers: string[], dataSample: any[]): Promise<string[]> {
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+  const backendUrl = getBackendUrl();
   
   const response = await fetch(`${backendUrl}/api/analyze-description`, {
     method: 'POST',

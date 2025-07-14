@@ -11,16 +11,55 @@ load_dotenv()
 
 app = FastAPI(title="Chart Wizard API", version="1.0.0")
 
-# 設置 CORS - 僅允許特定的來源
+# 原始開發環境 CORS 設定 (保持不變)
+ORIGINAL_CORS_ORIGINS = [
+    "http://localhost:8080", 
+    "http://localhost:3000", 
+    "http://localhost:5173",
+    "http://192.168.1.109:8080",
+    "https://mm-ai-highchart-generator.zeabur.app"  # 添加這一行
+]
+
+# 環境檢測函數
+def is_zeabur_environment():
+    """檢測是否在 Zeabur 環境中運行"""
+    return os.getenv("ZEABUR_ENVIRONMENT") is not None
+
+def get_zeabur_domains():
+    """獲取 Zeabur 相關域名"""
+    domains = []
+    
+    # 從環境變數獲取前端 URL
+    frontend_url = os.getenv("FRONTEND_URL")
+    if frontend_url:
+        domains.append(frontend_url)
+    
+    # Zeabur 自動域名
+    zeabur_url = os.getenv("ZEABUR_URL")
+    if zeabur_url:
+        domains.append(zeabur_url)
+        # 添加 https 版本
+        if zeabur_url.startswith("http://"):
+            domains.append(zeabur_url.replace("http://", "https://"))
+    
+    return domains
+
+def get_effective_cors_origins():
+    """獲取有效的 CORS 來源列表"""
+    origins = ORIGINAL_CORS_ORIGINS.copy()
+    
+    # 如果是 Zeabur 環境，添加 Zeabur 域名
+    if is_zeabur_environment():
+        zeabur_origins = get_zeabur_domains()
+        origins.extend(zeabur_origins)
+    
+    # 移除重複項
+    return list(set(origins))
+
+# 設置 CORS 中間件
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:8080", 
-        "http://localhost:3000", 
-        "http://localhost:5173",
-        "http://192.168.1.109:8080",  # 你的網路IP地址
-        # 如果需要其他IP，在這裡添加
-    ],
+    allow_origins=get_effective_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
