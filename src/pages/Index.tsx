@@ -301,7 +301,20 @@ const Index = () => {
           return null;
         }
         
-        return [timestamp, parseFloat(row[seriesConfig.column]) || 0];
+        // 檢查數值是否為空或無效
+        const rawValue = row[seriesConfig.column];
+        if (rawValue === null || rawValue === undefined || rawValue === '' || String(rawValue).trim() === '') {
+          // 數值為空，跳過此數據點
+          return null;
+        }
+        
+        const numValue = parseFloat(rawValue);
+        if (isNaN(numValue)) {
+          // 無效數值，跳過此數據點
+          return null;
+        }
+        
+        return [timestamp, numValue];
       }).filter(point => point !== null)  // 過濾掉 null 值
     }));
   };
