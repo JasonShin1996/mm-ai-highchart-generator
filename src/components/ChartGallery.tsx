@@ -9,7 +9,11 @@ import {
   AreaChart, 
   TrendingUp,
   Layers,
-  Circle
+  Circle,
+  Droplets,
+  Zap,
+  GitBranch,
+  Shuffle
 } from 'lucide-react';
 
 interface ChartType {
@@ -77,6 +81,34 @@ const chartTypes: ChartType[] = [
     description: '餅圖的變體，中間留有空白',
     icon: <Circle className="h-8 w-8" />,
     category: '比例'
+  },
+  {
+    id: 'bubble',
+    name: '泡泡圖',
+    description: '比散佈圖多了泡泡大小維度，展示三維數據關係',
+    icon: <Droplets className="h-8 w-8" />,
+    category: '關係'
+  },
+  {
+    id: 'waterfall',
+    name: '瀑布圖',
+    description: '顯示數據的累積變化和組成結構',
+    icon: <Zap className="h-8 w-8" />,
+    category: '比較'
+  },
+  {
+    id: 'combo',
+    name: '組合圖',
+    description: '結合柱狀圖和折線圖，支援雙軸顯示',
+    icon: <GitBranch className="h-8 w-8" />,
+    category: '時間序列'
+  },
+  {
+    id: 'random',
+    name: '擲筊',
+    description: '讓命運決定圖表類型，探索數據的多種可能性',
+    icon: <Shuffle className="h-8 w-8" />,
+    category: '探索'
   }
 ];
 

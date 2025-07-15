@@ -39,7 +39,11 @@ const Index = () => {
       'scatter': '散佈圖',
       'stacked_column': '堆疊柱狀圖',
       'spline': '平滑線圖',
-      'donut': '環形圖'
+      'donut': '環形圖',
+      'bubble': '泡泡圖',
+      'waterfall': '瀑布圖',
+      'combo': '組合圖',
+      'random': '擲筊'
     };
     return chartTypeNames[chartType] || chartType;
   };
@@ -109,13 +113,27 @@ const Index = () => {
       return uniqueValues.length < values.length * 0.7 && uniqueValues.length > 1;
     });
     
+    // 檢查是否有負值（用於瀑布圖推薦）
+    const hasNegativeValues = numericalFields.some(field => {
+      const values = sampleData.map(row => row[field]).filter(v => v !== null && v !== undefined);
+      return values.some(v => parseFloat(v) < 0);
+    });
+    
     // 基於數據特性推薦
     if (hasTimeColumn && numericalFields.length > 0) {
       recommendations.push('line', 'area', 'spline');
+      // 時間序列 + 多種指標適合組合圖
+      if (numericalFields.length >= 2) {
+        recommendations.push('combo');
+      }
     }
     
     if (categoricalFields.length > 0 && numericalFields.length > 0) {
       recommendations.push('column', 'stacked_column');
+      // 有負值變化適合瀑布圖
+      if (hasNegativeValues) {
+        recommendations.push('waterfall');
+      }
     }
     
     if (categoricalFields.length > 0 && numericalFields.length === 1) {
@@ -126,14 +144,31 @@ const Index = () => {
       recommendations.push('scatter');
     }
     
+    // 三個以上數值欄位適合泡泡圖
+    if (numericalFields.length >= 3) {
+      recommendations.push('bubble');
+    }
+    
     // 去重並限制推薦數量
     return [...new Set(recommendations)].slice(0, 3);
   }, []);
 
   // 處理圖表類型選擇
   const handleChartTypeSelect = useCallback((chartType: string) => {
-    setSelectedChartType(chartType);
-  }, []);
+    if (chartType === 'random') {
+      // 擲筊功能：隨機選擇一個圖表類型
+      const availableTypes = ['line', 'column', 'area', 'pie', 'scatter', 'stacked_column', 'spline', 'donut', 'bubble', 'waterfall', 'combo'];
+      const randomType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+      setSelectedChartType(randomType);
+      
+      toast({
+        title: "擲筊結果",
+        description: `命運選擇了 ${getChartTypeName(randomType)}！`,
+      });
+    } else {
+      setSelectedChartType(chartType);
+    }
+  }, [toast, getChartTypeName]);
 
   const handleFileUpload = useCallback(async (data) => {
     setFileData(data);
@@ -848,6 +883,184 @@ const Index = () => {
         - 使用 innerSize 創建中心空洞
         
         現在，請產生專門用於環形圖的 Highcharts JSON 設定物件。
+      `,
+      
+      'bubble': `
+        ${basePrompt}
+        
+        **泡泡圖專門指令：**
+        - 專注於三維數據關係的展示（X軸、Y軸、泡泡大小）
+        - 使用 bubble 圖表類型
+        - 數據格式建議使用對象格式 {x, y, z, name} 以支援豐富的標籤和tooltip
+        - 設置適當的泡泡大小範圍 (minSize/maxSize)
+        - 如果要讓每個泡泡有不同顏色，可以在series中設置colorByPoint: true
+        - 添加 dataLabels 顯示有意義的標籤
+        - 優化 tooltip 顯示完整的三維信息，但如果數據量太大，也可以不顯示
+        
+        **正確範例：**
+        \`\`\`json
+        {
+          "chart": {"type": "bubble"},
+          "title": {"text": "標題"},
+          "xAxis": {"title": {"text": "X軸標題"}},
+          "yAxis": {"title": {"text": "Y軸標題"}},
+          "plotOptions": {
+            "series": {
+              "minSize": 10,
+              "maxSize": 60,
+              "dataLabels": {
+                "enabled": true,
+                "format": "{point.name}"
+              }
+            }
+          },
+          "series": [{
+            "name": "系列名",
+            "type": "bubble",
+            "colorByPoint": true,
+            "data": [
+              {x: 50, y: 60, z: 10, name: 項目A},
+              {x: 60, y: 70, z: 15, name: 項目B},
+              {x: 70, y: 80, z: 20, name: 項目C}
+            ]
+          }]
+        }
+        \`\`\`
+        
+        **避免錯誤：**
+        - chart: "bubble" ❌ → chart: {"type": "bubble"} ✅
+        - 簡單數組格式 [x, y, z] ❌ → 對象格式 {x, y, z, name} ✅
+        - 忘記設置泡泡大小範圍 ❌ → 設置 minSize/maxSize ✅
+        - 沒有標籤顯示 ❌ → 添加 dataLabels ✅
+        
+        **數據格式：**
+        - 推薦對象格式：{x: 數值, y: 數值, z: 數值, name: "標籤"}
+        - x, y 為坐標位置，z 為泡泡大小，name 為顯示標籤
+        - 可添加額外字段用於 tooltip 顯示
+        
+        **樣式建議：**
+        - 使用 colorByPoint: true 讓每個泡泡有不同顏色
+        - 設置合理的 minSize (10-20) 和 maxSize (50-80)
+        - 啟用 dataLabels 提升可讀性
+        
+        現在，請產生專門用於泡泡圖的 Highcharts JSON 設定物件。
+      `,
+      
+      'waterfall': `
+        ${basePrompt}
+        
+        **瀑布圖專門指令：**
+        - 專注於累積變化和組成結構的展示
+        - 使用 waterfall 圖表類型
+        - 設置 upColor（正值）和 color（負值）來區分增減變化
+        - 總計和中間小計可以單獨設置顏色
+        - 添加 dataLabels 顯示格式化的變化量
+        - 優化 tooltip 顯示詳細信息
+        
+        **正確範例：**
+        \`\`\`json
+        {
+          "chart": {"type": "waterfall"},
+          "title": {"text": "標題"},
+          "xAxis": {"type": "category"},
+          "yAxis": {"title": {"text": "Y軸標題"}},
+          "tooltip": {
+            "pointFormat": "<b>{point.y:,.0f}</b>"
+          },
+          "series": [{
+            "upColor": "#70CA63",
+            "color": "#E9573F", 
+            "dataLabels": {
+              "enabled": true,
+              "format": "{point.y:,.0f}"
+            },
+            "data": [
+              {name: 開始, y: 100000},
+              {name: 收入增加, y: 50000},
+              {name: 成本減少, y: -30000},
+              {name: 小計, y: 120000, isIntermediateSum: true, color: #3BAFDA},
+              {name: 其他支出, y: -20000},
+              {name: 總計, y: 100000, isSum: true, color: #3BAFDA}
+            ]
+          }]
+        }
+        \`\`\`
+        
+        **避免錯誤：**
+        - 使用單一顏色 ❌ → 設置 upColor 和 color 區分正負值 ✅
+        - 忘記設置 isSum/isIntermediateSum ❌ → 正確標記總計項目 ✅
+        - 沒有數據標籤 ❌ → 添加 dataLabels 格式化顯示 ✅
+        - tooltip 不清楚 ❌ → 自定義 pointFormat ✅
+        - 總計項目沒有y值 ❌ → isSum 和 isIntermediateSum 都需要設置 y 值 ✅
+        
+        **數據格式：**
+        - 普通項目：{name: 項目名, y: 變化值}
+        - 中間小計：{name: 小計, y: 累積值, isIntermediateSum: true, color: #顏色}
+        - 總計項目：{name: 總計, y: 最終值, isSum: true, color: #顏色}
+        
+        **顏色建議：**
+        - upColor: 正值顏色（如綠色 #70CA63）
+        - color: 負值顏色（如紅色 #E9573F）
+        - 總計顏色: 中性顏色（如藍色 #3BAFDA）
+        
+        現在，請產生專門用於瀑布圖的 Highcharts JSON 設定物件。
+      `,
+      
+      'combo': `
+        ${basePrompt}
+        
+        **組合圖專門指令：**
+        - 結合不同圖表類型（如柱狀圖+折線圖）
+        - 支援雙軸配置（左軸、右軸）
+        - 確保不同類型的數據使用適當的圖表類型
+        - 設置清晰的圖例區分不同類型
+        - 考慮數據量級差異，使用雙軸
+        
+        **正確範例：**
+        \`\`\`json
+        {
+          "chart": {"type": "column"},
+          "title": {"text": "標題"},
+          "xAxis": {"categories": ["1月", "2月", "3月", "4月"]},
+          "yAxis": [
+            {
+              "title": {"text": "銷售額"},
+              "labels": {"format": "{value}萬"}
+            },
+            {
+              "title": {"text": "成長率"},
+              "labels": {"format": "{value}%"},
+              "opposite": true
+            }
+          ],
+          "series": [
+            {
+              "name": "銷售額",
+              "type": "column",
+              "yAxis": 1,
+              "data": [100, 120, 110, 130]
+            },
+            {
+              "name": "成長率",
+              "type": "line",
+              "yAxis": 2,
+              "data": [10, 20, -8, 18]
+            }
+          ]
+        }
+        \`\`\`
+        
+        **避免錯誤：**
+        - 單一圖表類型 ❌ → 多種圖表類型組合 ✅
+        - 不使用雙軸 ❌ → 根據數據特性設置雙軸 ✅
+        - yAxis 索引錯誤 ❌ → 正確設置 yAxis 索引（從1開始）✅
+        
+        **數據格式：**
+        - 多個 series，每個指定不同的 type
+        - 使用 yAxis 索引指定軸（索引從1開始）
+        - 設置 opposite: true 讓第二軸顯示在右側
+        
+        現在，請產生專門用於組合圖的 Highcharts JSON 設定物件。
       `
     };
 
@@ -932,7 +1145,7 @@ const Index = () => {
         const needsLineWidth = () => {
           if (!chartOptions || !chartOptions.series) return false;
           
-          // 檢查是否有任何 series 使用線條類型
+          // 檢查是否有任何 series 使用線條類型（包括組合圖中的線條系列）
           const lineBasedTypes = ['line', 'spline', 'area', 'areaspline'];
           return chartOptions.series.some(series => 
             lineBasedTypes.includes(series.type)
@@ -941,29 +1154,33 @@ const Index = () => {
         
         // 根據圖表類型決定 plotOptions
         const getPlotOptions = () => {
-          // 檢查是否為散佈圖
-          const isScatterChart = () => {
+          // 檢查是否為散佈圖或泡泡圖（需要啟用marker）
+          const needsMarkers = () => {
             if (!chartOptions) return false;
             
-            // 檢查 chart.type
-            if (chartOptions.chart?.type === 'scatter') return true;
+            // 檢查 chart.type（散佈圖和泡泡圖需要顯示標記點）
+            if (chartOptions.chart?.type === 'scatter' || chartOptions.chart?.type === 'bubble') return true;
             
-            // 檢查 series 中是否有 scatter 類型
+            // 檢查 series 中是否有 scatter 或 bubble 類型（包括組合圖中的散佈/泡泡系列）
             if (chartOptions.series && Array.isArray(chartOptions.series)) {
-              return chartOptions.series.some(series => series.type === 'scatter');
+              return chartOptions.series.some(series => 
+                series.type === 'scatter' || series.type === 'bubble'
+              );
             }
             
             return false;
           };
           
           const seriesOptions: any = {
-            'marker': {'enabled': isScatterChart() ? true : false},
+            'marker': {'enabled': needsMarkers() ? true : false},
           };
           
           // 只對需要線條的圖表類型添加 lineWidth
           if (needsLineWidth()) {
             seriesOptions.lineWidth = 3;
           }
+          
+          // 注意：瀑布圖使用預設設定，不需要特殊的 marker 或 lineWidth 處理
           
           return {
             'series': seriesOptions
@@ -1254,19 +1471,7 @@ const Index = () => {
                   </span>
                   生成與設定圖表
                   <span className="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                    {(() => {
-                      const chartTypeNames = {
-                        'line': '折線圖',
-                        'column': '柱狀圖',
-                        'area': '面積圖',
-                        'pie': '圓餅圖',
-                        'scatter': '散佈圖',
-                        'stacked_column': '堆疊柱狀圖',
-                        'spline': '平滑線圖',
-                        'donut': '環形圖'
-                      };
-                      return chartTypeNames[selectedChartType] || selectedChartType;
-                    })()}
+                    {getChartTypeName(selectedChartType)}
                   </span>
                 </span>
                 {chartOptions && (

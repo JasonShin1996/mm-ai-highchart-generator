@@ -129,6 +129,9 @@ async def analyze_data(request: DataAnalysisRequest):
         - "stacked_column" (堆疊柱狀圖) - 適合多層級分類數據
         - "spline" (平滑線圖) - 適合平滑趨勢展示
         - "donut" (環形圖) - 適合比例分布的變體
+        - "bubble" (泡泡圖) - 適合三維數據關係展示
+        - "waterfall" (瀑布圖) - 適合累積變化分析
+        - "combo" (組合圖) - 適合多種類型數據的綜合展示
         
         請返回以下格式的JSON：
         {{
@@ -137,7 +140,7 @@ async def analyze_data(request: DataAnalysisRequest):
             "confidence": 0.85
         }}
         
-        其中 description 是完整的圖表描述句子，recommended_chart_type 是上述8種類型之一，confidence 是0-1之間的置信度。
+        其中 description 是完整的圖表描述句子，recommended_chart_type 是上述11種類型之一，confidence 是0-1之間的置信度。
         只返回JSON，不要包含任何額外文字。
     """
     
@@ -183,7 +186,7 @@ async def analyze_data(request: DataAnalysisRequest):
                         raise ValueError("回應格式不完整")
                     
                     # 驗證圖表類型
-                    valid_types = ["line", "column", "area", "pie", "scatter", "stacked_column", "spline", "donut"]
+                    valid_types = ["line", "column", "area", "pie", "scatter", "stacked_column", "spline", "donut", "bubble", "waterfall", "combo"]
                     if parsed_response["recommended_chart_type"] not in valid_types:
                         # 如果類型無效，使用預設值
                         parsed_response["recommended_chart_type"] = "column"
