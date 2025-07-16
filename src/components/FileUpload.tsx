@@ -58,6 +58,16 @@ const FileUpload = ({ onFileUpload }) => {
     }
   }, [onFileUpload, toast, autoConvertDates]);
 
+  // 處理空值 headers 的函數
+  const processHeaders = (headers) => {
+    return headers.map((header, index) => {
+      if (!header || String(header).trim() === '') {
+        return `unnamed: ${index + 1}`;
+      }
+      return header;
+    });
+  };
+
   const parseCsv = (file) => {
     return new Promise((resolve, reject) => {
       if (!window.Papa) {
@@ -74,8 +84,33 @@ const FileUpload = ({ onFileUpload }) => {
             reject(new Error(`CSV 解析錯誤: ${results.errors[0].message}`));
             return;
           }
-          onFileUpload(results);
-          resolve(results);
+          
+          // 處理空值 headers
+          const originalHeaders = results.meta.fields;
+          const processedHeaders = processHeaders(originalHeaders);
+          
+          // 如果 headers 有變化，需要重新構建數據
+          if (JSON.stringify(originalHeaders) !== JSON.stringify(processedHeaders)) {
+            const newData = results.data.map(row => {
+              const newRow = {};
+              processedHeaders.forEach((newHeader, index) => {
+                const originalHeader = originalHeaders[index];
+                newRow[newHeader] = row[originalHeader];
+              });
+              return newRow;
+            });
+            
+            const processedResults = {
+              ...results,
+              meta: { ...results.meta, fields: processedHeaders },
+              data: newData
+            };
+            onFileUpload(processedResults);
+            resolve(processedResults);
+          } else {
+            onFileUpload(results);
+            resolve(results);
+          }
         },
         error: (error) => {
           reject(new Error(`CSV 檔案解析失敗: ${error.message}`));
@@ -114,17 +149,19 @@ const FileUpload = ({ onFileUpload }) => {
             return;
           }
 
-          const headers = rawData[0];
+          const originalHeaders = rawData[0];
+          const processedHeaders = processHeaders(originalHeaders);
           const dataRows = rawData.slice(1);
+          
           const jsonData = dataRows.map(rowArray => {
             const rowObject = {};
-            headers.forEach((header, index) => {
+            processedHeaders.forEach((header, index) => {
               rowObject[header] = rowArray[index] !== undefined ? rowArray[index] : '';
             });
             return rowObject;
           });
 
-          const results = { meta: { fields: headers }, data: jsonData };
+          const results = { meta: { fields: processedHeaders }, data: jsonData };
           onFileUpload(results);
           resolve(results);
         } catch (error) {

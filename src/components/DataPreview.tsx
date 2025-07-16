@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-const DataPreview = ({ data }) => {
+const DataPreview = ({ data, onDataChange = null }) => {
   const [tableData, setTableData] = useState({ headers: [], rows: [] });
 
   // 格式化值的函數，特別處理Date對象和數字
@@ -93,7 +93,17 @@ const DataPreview = ({ data }) => {
   const handleCellEdit = (rowIndex, header, newValue) => {
     const newRows = [...tableData.rows];
     newRows[rowIndex] = { ...newRows[rowIndex], [header]: newValue };
-    setTableData(prev => ({ ...prev, rows: newRows }));
+    const newTableData = { ...tableData, rows: newRows };
+    setTableData(newTableData);
+    
+    // 通知父組件數據變化
+    if (onDataChange) {
+      onDataChange({
+        ...data,
+        data: newRows,
+        meta: { ...data.meta, fields: tableData.headers }
+      });
+    }
   };
 
   const handleHeaderEdit = (oldHeader, newHeader) => {
@@ -106,7 +116,17 @@ const DataPreview = ({ data }) => {
       }
       return newRow;
     });
-    setTableData({ headers: newHeaders, rows: newRows });
+    const newTableData = { headers: newHeaders, rows: newRows };
+    setTableData(newTableData);
+    
+    // 通知父組件數據變化
+    if (onDataChange) {
+      onDataChange({
+        ...data,
+        data: newRows,
+        meta: { ...data.meta, fields: newHeaders }
+      });
+    }
   };
 
   if (!tableData.headers.length) {

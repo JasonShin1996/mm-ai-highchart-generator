@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Upload, Zap, Settings, Copy, Eye, FileSpreadsheet } from 'lucide-react';
+import { Upload, Zap, Settings, Copy, Eye, FileSpreadsheet, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import FileUpload from '@/components/FileUpload';
 import DataPreview from '@/components/DataPreview';
 import ChartDisplay from '@/components/ChartDisplay';
@@ -27,7 +28,13 @@ const Index = () => {
   const [generatedCode, setGeneratedCode] = useState('');
   const [selectedChartType, setSelectedChartType] = useState<string | null>(null);
   const [recommendedChartTypes, setRecommendedChartTypes] = useState<string[]>([]);
+  const [showDataPreview, setShowDataPreview] = useState(false);
   const { toast } = useToast();
+
+  // 處理數據變化
+  const handleDataChange = useCallback((newData) => {
+    setFileData(newData);
+  }, []);
 
   // 圖表類型名稱映射
   const getChartTypeName = (chartType: string) => {
@@ -1374,14 +1381,23 @@ const Index = () => {
             <div className="space-y-4">
               <FileUpload onFileUpload={handleFileUpload} />
               
-              {/* 數據預覽 */}
+              {/* 數據摘要 */}
               {fileData && (
-                <div className="space-y-3">
-                  <div className="flex items-center pt-3 border-t border-gray-200">
+                <div className="flex items-center gap-4 pt-2 border-t border-gray-200">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowDataPreview(true)}
+                  >
+                    <Edit className="mr-1 h-4 w-4" />
+                    編輯
+                  </Button>
+                  <div className="flex items-center">
                     <FileSpreadsheet className="mr-2 h-4 w-4 text-gray-600" />
-                    <span className="text-sm font-medium text-gray-700">數據預覽 (標頭與儲存格可直接編輯)</span>
+                    <span className="text-sm font-medium text-gray-700">
+                      用戶上傳數據已加載：{fileData.data.length} 行 × {fileData.meta.fields.length} 列
+                    </span>
                   </div>
-                  <DataPreview data={fileData} />
                 </div>
               )}
             </div>
@@ -1552,6 +1568,21 @@ const Index = () => {
           </Card>
         )}
       </div>
+
+      {/* 數據預覽 Dialog */}
+      <Dialog open={showDataPreview} onOpenChange={setShowDataPreview}>
+        <DialogContent className="max-w-6xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>數據預覽與編輯</DialogTitle>
+            <DialogDescription>
+              您可以直接編輯表格中的數據，修改會即時生效
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-auto">
+            {fileData && <DataPreview data={fileData} onDataChange={handleDataChange} />}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
