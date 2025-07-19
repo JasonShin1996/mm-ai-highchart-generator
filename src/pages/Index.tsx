@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Upload, Zap, Settings, Copy, Eye, FileSpreadsheet, Edit } from 'lucide-react';
+import { Upload, Zap, Settings, Copy, Eye, FileSpreadsheet, Edit, Database, X, Search, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,11 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import FileUpload from '@/components/FileUpload';
 import DataPreview from '@/components/DataPreview';
 import ChartDisplay from '@/components/ChartDisplay';
 import SettingsPanel from '@/components/SettingsPanel';
 import ChartGallery from '@/components/ChartGallery';
+import DatabaseSearchDialog from '@/components/DatabaseSearchDialog';
 import { useToast } from '@/hooks/use-toast';
 import { generateChartConfig, generateChartSuggestion } from '@/services/gemini';
 
@@ -29,12 +31,72 @@ const Index = () => {
   const [selectedChartType, setSelectedChartType] = useState<string | null>(null);
   const [recommendedChartTypes, setRecommendedChartTypes] = useState<string[]>([]);
   const [showDataPreview, setShowDataPreview] = useState(false);
+  const [showDatabaseDialog, setShowDatabaseDialog] = useState(false);
+  const [databaseData, setDatabaseData] = useState(null);
   const { toast } = useToast();
 
   // 處理數據變化
   const handleDataChange = useCallback((newData) => {
     setFileData(newData);
   }, []);
+
+  // 處理資料庫數據載入
+  const handleDatabaseDataLoaded = useCallback((data) => {
+    setDatabaseData(data);
+    // 不清空檔案數據，讓兩種數據源可以共存
+    setChartOptions(null);
+    setShowSettings(false);
+    setPrompt('');
+    setGeneratedCode('');
+    setSelectedChartType(null);
+    setRecommendedChartTypes([]);
+    
+    console.log('Database data loaded:', data);
+    
+    toast({
+      title: "資料庫數據已載入",
+      description: `已載入 ${data.length} 個時間序列`,
+    });
+  }, [toast]);
+
+  // 清除資料庫數據
+  const clearDatabaseData = useCallback(() => {
+    setDatabaseData(null);
+    setChartOptions(null);
+    setShowSettings(false);
+    setPrompt('');
+    setGeneratedCode('');
+    setSelectedChartType(null);
+    setRecommendedChartTypes([]);
+    
+    toast({
+      title: "資料庫數據已清除",
+      description: "已清除所有載入的資料庫數據",
+    });
+  }, [toast]);
+
+  // 清除特定的資料庫數據項目
+  const clearDatabaseDataItem = useCallback((itemId: string) => {
+    if (databaseData) {
+      const newData = databaseData.filter(item => item.id !== itemId);
+      setDatabaseData(newData.length > 0 ? newData : null);
+      
+      // 如果清除後沒有數據，也清除圖表
+      if (newData.length === 0) {
+        setChartOptions(null);
+        setShowSettings(false);
+        setPrompt('');
+        setGeneratedCode('');
+        setSelectedChartType(null);
+        setRecommendedChartTypes([]);
+      }
+      
+      toast({
+        title: "數據項目已移除",
+        description: `已移除 ${itemId} 數據`,
+      });
+    }
+  }, [databaseData, toast]);
 
   // 圖表類型名稱映射
   const getChartTypeName = (chartType: string) => {
@@ -1367,45 +1429,122 @@ const Index = () => {
       </header>
 
       <div className="space-y-8">
-        {/* 步驟一：上傳檔案與數據預覽 */}
+        {/* 步驟一：選擇數據源 */}
         <Card className="shadow-lg">
           <CardHeader className="pb-4">
             <CardTitle className="flex items-center">
               <span className="bg-blue-500 text-white rounded-full h-8 w-8 text-sm flex items-center justify-center mr-3">
                 1
               </span>
-              上傳您的 CSV / Excel 檔案
+              選擇您的數據源
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="space-y-4">
-              <FileUpload onFileUpload={handleFileUpload} />
-              
-              {/* 數據摘要 */}
-              {fileData && (
-                <div className="flex items-center gap-4 pt-2 border-t border-gray-200">
-                  <Button 
-                    variant="outline" 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* 左側：檔案上傳 */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2 mb-3">
+                  <Upload className="h-5 w-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">本地數據</h3>
+                </div>
+                
+                <div id="file-upload">
+                  <FileUpload onFileUpload={handleFileUpload} />
+                </div>
+                
+                {/* 檔案數據摘要 */}
+                {fileData && (
+                  <div className="flex items-center gap-4 pt-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setShowDataPreview(true)}
+                    >
+                      <Edit className="mr-1 h-4 w-4" />
+                      編輯
+                    </Button>
+                    <div className="flex items-center">
+                      <FileSpreadsheet className="mr-2 h-4 w-4 text-gray-600" />
+                      <span className="text-sm font-medium text-gray-700">
+                        用戶上傳數據已加載：{fileData.data.length} 行 × {fileData.meta.fields.length} 列
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 右側：資料庫搜尋 */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2 mb-3">
+                  <Database className="h-5 w-5 text-green-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">M平方資料庫</h3>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                  <Button
+                    variant="outline"
                     size="sm"
-                    onClick={() => setShowDataPreview(true)}
+                    onClick={() => setShowDatabaseDialog(true)}
+                    className="flex items-center space-x-2"
                   >
-                    <Edit className="mr-1 h-4 w-4" />
-                    編輯
+                    <Search className="h-4 w-4" />
+                    <span>搜尋數據</span>
                   </Button>
-                  <div className="flex items-center">
-                    <FileSpreadsheet className="mr-2 h-4 w-4 text-gray-600" />
-                    <span className="text-sm font-medium text-gray-700">
-                      用戶上傳數據已加載：{fileData.data.length} 行 × {fileData.meta.fields.length} 列
-                    </span>
+                  <div className="text-sm text-gray-600">
+                    {databaseData ? '已載入資料庫數據' : '點擊搜尋載入資料庫數據'}
                   </div>
                 </div>
-              )}
+
+                {/* 資料庫數據摘要 */}
+                {databaseData && (
+                  <TooltipProvider>
+                    <div className="flex flex-wrap gap-2">
+                      {databaseData.map((item, index) => {
+                        // 為每個數據項目分配顏色
+                        const colors = [
+                          'bg-blue-50 border-blue-200 text-blue-900',
+                          'bg-green-50 border-green-200 text-green-900', 
+                          'bg-purple-50 border-purple-200 text-purple-900',
+                          'bg-orange-50 border-orange-200 text-orange-900',
+                          'bg-red-50 border-red-200 text-red-900'
+                        ];
+                        const colorClass = colors[index % colors.length];
+                        const displayName = item.name_tc || item.id;
+                        
+                        return (
+                          <Tooltip key={item.id}>
+                            <TooltipTrigger asChild>
+                              <div 
+                                className={`flex items-center gap-1 px-2 py-1 border rounded-md ${colorClass} max-w-fit cursor-pointer`}
+                              >
+                                <TrendingUp className="w-3 h-3 flex-shrink-0" />
+                                <span className="text-xs font-medium truncate max-w-24">
+                                  {displayName}
+                                </span>
+                                <button
+                                  onClick={() => clearDatabaseDataItem(item.id)}
+                                  className="p-0.5 rounded-full hover:bg-black/10 flex-shrink-0 ml-1"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{displayName}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      })}
+                    </div>
+                  </TooltipProvider>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
 
         {/* 步驟二：查看AI建議並描述需求 */}
-        {fileData && (
+        {(fileData || databaseData) && (
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center">
@@ -1583,6 +1722,13 @@ const Index = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 資料庫搜尋 Dialog */}
+      <DatabaseSearchDialog
+        open={showDatabaseDialog}
+        onOpenChange={setShowDatabaseDialog}
+        onDataLoaded={handleDatabaseDataLoaded}
+      />
     </div>
   );
 };

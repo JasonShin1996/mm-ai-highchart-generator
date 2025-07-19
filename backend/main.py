@@ -9,6 +9,12 @@ import json
 # 載入環境變數
 load_dotenv()
 
+# 創建全局 HTTP 客戶端，避免連接池洩漏
+http_client = httpx.AsyncClient(
+    timeout=httpx.Timeout(10.0),  # 10秒超時
+    limits=httpx.Limits(max_connections=10, max_keepalive_connections=5)
+)
+
 app = FastAPI(title="Chart Wizard API", version="1.0.0")
 
 # 原始開發環境 CORS 設定 (保持不變)
@@ -80,6 +86,36 @@ class ChartSuggestionResponse(BaseModel):
     description: str
     recommended_chart_type: str
     confidence: float
+
+# 新增：資料庫搜尋相關模型
+class DatabaseSearchRequest(BaseModel):
+    query: str
+
+class DatabaseItem(BaseModel):
+    id: str
+    name_tc: str
+    name_en: str
+    country: str
+    min_date: str
+    max_date: str
+    frequency: str
+    units: str
+    score: float
+
+class DatabaseSearchResponse(BaseModel):
+    items: list[DatabaseItem]
+
+class DatabaseLoadRequest(BaseModel):
+    stat_ids: list[str]
+
+class TimeSeriesData(BaseModel):
+    id: str
+    name_tc: str
+    name_en: str
+    data: list[dict]
+
+class DatabaseLoadResponse(BaseModel):
+    time_series: list[TimeSeriesData]
 
 @app.get("/")
 async def root():
@@ -153,61 +189,60 @@ async def analyze_data(request: DataAnalysisRequest):
     }
     
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                api_url,
-                json=payload,
-                headers={"Content-Type": "application/json"},
-                timeout=120.0
+        response = await http_client.post(
+            api_url,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=120.0
+        )
+        
+        if not response.is_success:
+            error_detail = response.json() if response.content else "Unknown error"
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"API request failed: {error_detail}"
             )
+        
+        result = response.json()
+        
+        # 解析回應
+        if (result.get("candidates") and 
+            result["candidates"][0].get("content") and 
+            result["candidates"][0]["content"].get("parts") and 
+            result["candidates"][0]["content"]["parts"][0].get("text")):
             
-            if not response.is_success:
-                error_detail = response.json() if response.content else "Unknown error"
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail=f"API request failed: {error_detail}"
+            # 解析 JSON 回應
+            llm_response = result["candidates"][0]["content"]["parts"][0]["text"]
+            try:
+                parsed_response = json.loads(llm_response)
+                
+                # 驗證回應格式
+                if not all(key in parsed_response for key in ["description", "recommended_chart_type", "confidence"]):
+                    raise ValueError("回應格式不完整")
+                
+                # 驗證圖表類型
+                valid_types = ["line", "column", "area", "pie", "scatter", "stacked_column", "spline", "donut", "bubble", "waterfall", "combo"]
+                if parsed_response["recommended_chart_type"] not in valid_types:
+                    # 如果類型無效，使用預設值
+                    parsed_response["recommended_chart_type"] = "column"
+                    parsed_response["confidence"] = 0.5
+                
+                return ChartSuggestionResponse(
+                    description=parsed_response["description"],
+                    recommended_chart_type=parsed_response["recommended_chart_type"],
+                    confidence=float(parsed_response["confidence"])
                 )
-            
-            result = response.json()
-            
-            # 解析回應
-            if (result.get("candidates") and 
-                result["candidates"][0].get("content") and 
-                result["candidates"][0]["content"].get("parts") and 
-                result["candidates"][0]["content"]["parts"][0].get("text")):
                 
-                # 解析 JSON 回應
-                llm_response = result["candidates"][0]["content"]["parts"][0]["text"]
-                try:
-                    parsed_response = json.loads(llm_response)
-                    
-                    # 驗證回應格式
-                    if not all(key in parsed_response for key in ["description", "recommended_chart_type", "confidence"]):
-                        raise ValueError("回應格式不完整")
-                    
-                    # 驗證圖表類型
-                    valid_types = ["line", "column", "area", "pie", "scatter", "stacked_column", "spline", "donut", "bubble", "waterfall", "combo"]
-                    if parsed_response["recommended_chart_type"] not in valid_types:
-                        # 如果類型無效，使用預設值
-                        parsed_response["recommended_chart_type"] = "column"
-                        parsed_response["confidence"] = 0.5
-                    
-                    return ChartSuggestionResponse(
-                        description=parsed_response["description"],
-                        recommended_chart_type=parsed_response["recommended_chart_type"],
-                        confidence=float(parsed_response["confidence"])
-                    )
-                    
-                except (json.JSONDecodeError, ValueError, KeyError) as e:
-                    # 如果解析失敗，返回預設值
-                    return ChartSuggestionResponse(
-                        description="請根據您的數據特性描述想要的圖表類型和樣式",
-                        recommended_chart_type="column",
-                        confidence=0.5
-                    )
-            else:
-                raise HTTPException(status_code=500, detail="Invalid or empty response from API")
-                
+            except (json.JSONDecodeError, ValueError, KeyError) as e:
+                # 如果解析失敗，返回預設值
+                return ChartSuggestionResponse(
+                    description="請根據您的數據特性描述想要的圖表類型和樣式",
+                    recommended_chart_type="column",
+                    confidence=0.5
+                )
+        else:
+            raise HTTPException(status_code=500, detail="Invalid or empty response from API")
+            
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Request timeout")
     except httpx.RequestError as e:
@@ -233,39 +268,172 @@ async def generate_chart(request: PromptRequest):
     }
     
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                api_url,
-                json=payload,
-                headers={"Content-Type": "application/json"},
-                timeout=120.0
+        response = await http_client.post(
+            api_url,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=120.0
+        )
+        
+        if not response.is_success:
+            error_detail = response.json() if response.content else "Unknown error"
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"API request failed: {error_detail}"
             )
+        
+        result = response.json()
+        
+        # 解析回應
+        if (result.get("candidates") and 
+            result["candidates"][0].get("content") and 
+            result["candidates"][0]["content"].get("parts") and 
+            result["candidates"][0]["content"]["parts"][0].get("text")):
             
-            if not response.is_success:
-                error_detail = response.json() if response.content else "Unknown error"
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail=f"API request failed: {error_detail}"
-                )
+            return ChartResponse(result=result["candidates"][0]["content"]["parts"][0]["text"])
+        else:
+            raise HTTPException(status_code=500, detail="Invalid or empty response from API")
             
-            result = response.json()
-            
-            # 解析回應
-            if (result.get("candidates") and 
-                result["candidates"][0].get("content") and 
-                result["candidates"][0]["content"].get("parts") and 
-                result["candidates"][0]["content"]["parts"][0].get("text")):
-                
-                return ChartResponse(result=result["candidates"][0]["content"]["parts"][0]["text"])
-            else:
-                raise HTTPException(status_code=500, detail="Invalid or empty response from API")
-                
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Request timeout")
     except httpx.RequestError as e:
         raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+@app.post("/api/search-database", response_model=DatabaseSearchResponse)
+async def search_database(request: DatabaseSearchRequest):
+    """
+    搜尋資料庫數據
+    """
+    solr_url = os.getenv("SOLR_API_URL")
+    if not solr_url:
+        raise HTTPException(status_code=500, detail="Solr API URL not configured")
+    
+    query = request.query
+    full_url = f"{solr_url}?q={query}"
+    
+    try:
+        # 使用全局 HTTP 客戶端，帶重試機制
+        for attempt in range(2):  # 最多重試1次
+            try:
+                response = await http_client.get(full_url)
+                
+                if not response.is_success:
+                    raise HTTPException(
+                        status_code=response.status_code,
+                        detail=f"Solr API request failed: {response.status_code}"
+                    )
+                
+                data = response.json()
+                
+                # 提取並格式化搜尋結果
+                items = []
+                for doc in data.get('response', {}).get('docs', []):
+                    # 返回所有公開的數據（包括免費和付費）
+                    if doc.get('is_public') == 1:
+                        items.append(DatabaseItem(
+                            id=str(doc.get('id', '')),
+                            name_tc=doc.get('name_tc', ''),
+                            name_en=doc.get('name_en', ''),
+                            country=doc.get('country', ''),
+                            min_date=doc.get('min_date', ''),
+                            max_date=doc.get('max_date', ''),
+                            frequency=doc.get('frequency', ''),
+                            units=doc.get('units', ''),
+                            score=float(doc.get('score', 0))
+                        ))
+                
+                return DatabaseSearchResponse(items=items)
+                
+            except httpx.TimeoutException:
+                if attempt == 1:  # 最後一次重試
+                    raise HTTPException(status_code=504, detail="Request timeout after retry")
+                continue  # 重試一次
+            
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Request timeout")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+@app.post("/api/load-database-data", response_model=DatabaseLoadResponse)
+async def load_database_data(request: DatabaseLoadRequest):
+    """
+    載入選定的資料庫數據
+    """
+    biz_url = os.getenv("BIZ_API_URL")
+    biz_api_key = os.getenv("BIZ_API_KEY")
+    
+    if not biz_url or not biz_api_key:
+        raise HTTPException(status_code=500, detail="Biz API configuration not found")
+    
+    if len(request.stat_ids) > 5:
+        raise HTTPException(status_code=400, detail="最多只能載入5筆資料")
+    
+    headers = {'X-Api-Key': biz_api_key}
+    params = {'history': 'true'}
+    
+    results = []
+    
+    for stat_id in request.stat_ids:
+        full_url = f"{biz_url}/{stat_id}"
+        
+        try:
+            # 使用全局 HTTP 客戶端，帶重試機制
+            for attempt in range(2):  # 最多重試1次
+                try:
+                    response = await http_client.get(full_url, headers=headers, params=params)
+                    
+                    if not response.is_success:
+                        print(f"Failed to load data for stat_id {stat_id}: {response.status_code}")
+                        break
+                    
+                    data = response.json()
+                    
+                    # 轉換為時間序列格式
+                    time_series_data = []
+                    for point in data.get('series', []):
+                        time_series_data.append({
+                            'Date': point.get('date', ''),
+                            'Value': point.get('val', 0)
+                        })
+                    
+                    # 排序數據（按日期升序）
+                    time_series_data.sort(key=lambda x: x['Date'])
+                    
+                    results.append(TimeSeriesData(
+                        id=stat_id,
+                        name_tc=f"數據系列 {stat_id}",  # 暫時使用，後續可以從搜尋結果中獲取
+                        name_en=f"Data Series {stat_id}",
+                        data=time_series_data
+                    ))
+                    break  # 成功後跳出重試循環
+                    
+                except httpx.TimeoutException:
+                    if attempt == 1:  # 最後一次重試
+                        print(f"Timeout loading data for stat_id {stat_id} after retry")
+                        break
+                    continue  # 重試一次
+                
+        except httpx.TimeoutException:
+            print(f"Timeout loading data for stat_id {stat_id}")
+            continue
+        except httpx.RequestError as e:
+            print(f"Request error loading data for stat_id {stat_id}: {str(e)}")
+            continue
+        except Exception as e:
+            print(f"Unexpected error loading data for stat_id {stat_id}: {str(e)}")
+            continue
+    
+    return DatabaseLoadResponse(time_series=results)
+
+# 應用程序關閉時清理資源
+@app.on_event("shutdown")
+async def shutdown_event():
+    """應用程序關閉時清理HTTP客戶端"""
+    await http_client.aclose()
 
 if __name__ == "__main__":
     import uvicorn
