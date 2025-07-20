@@ -1,5 +1,5 @@
 import React from 'react';
-import { Upload, Database, ArrowRight } from 'lucide-react';
+import { Upload, Database, ArrowRight, GitBranch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
@@ -8,7 +8,7 @@ const Index = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="container mx-auto p-4 md:p-8 max-w-4xl">
+    <div className="container mx-auto p-4 md:p-8 max-w-6xl">
       <header className="text-center mb-12">
         <div className="flex items-center justify-center mb-4">
           <img 
@@ -25,7 +25,7 @@ const Index = () => {
         </p>
       </header>
 
-      <div className="grid md:grid-cols-2 gap-8">
+      <div className="grid md:grid-cols-3 gap-8">
         {/* 本地檔案上傳選項 */}
         <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 cursor-pointer group"
               onClick={() => navigate('/local-file')}>
@@ -69,7 +69,7 @@ const Index = () => {
             </CardHeader>
           <CardContent className="text-center">
             <p className="text-gray-600 mb-6">
-              搜尋 M平方資料庫中的時間序列數據，快速生成專業的金融圖表
+              搜尋 M平方資料庫的時間序列數據，快速生成專業的金融圖表
             </p>
             <div className="space-y-2 text-sm text-gray-500">
               <p>✓ 豐富的金融數據庫</p>
@@ -89,6 +89,35 @@ const Index = () => {
                   </Button>
             </CardContent>
           </Card>
+
+        {/* 融合數據選項 */}
+        <Card className="shadow-lg transition-shadow duration-300 opacity-60 cursor-not-allowed">
+          <CardHeader className="text-center pb-4">
+            <div className="mx-auto mb-4 p-4 bg-red-100 rounded-full w-16 h-16 flex items-center justify-center">
+              <GitBranch className="h-8 w-8 text-red-600" />
+            </div>
+            <CardTitle className="text-xl text-gray-900">融合數據</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center">
+            <p className="text-gray-600 mb-6">
+              結合本地檔案和 M平方資料庫數據，創建更豐富的混合圖表分析
+            </p>
+            <div className="space-y-2 text-sm text-gray-500">
+              <p>✓ 本地 + 資料庫數據融合</p>
+              <p>✓ 多源數據對比分析</p>
+              <p>✓ 智能數據關聯</p>
+              <p>✓ 進階圖表組合</p>
+            </div>
+            <div className="mt-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-yellow-700 text-sm font-medium">
+                🚧 開發中
+              </p>
+              <p className="text-yellow-600 text-xs mt-1">
+                敬請期待
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* 功能特色說明 */}
