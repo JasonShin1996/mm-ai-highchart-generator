@@ -464,6 +464,8 @@ const LocalFileChart = () => {
                     <SettingsPanel
                       chartOptions={chartOptions}
                       onOptionsChange={isOptimizing ? undefined : handleChartOptionsChange}
+                      databaseData={null} // 本地文件圖表不需要數據庫數據
+                      onDateChange={() => {}} // 本地文件圖表不需要日期變更處理
                     />
                   </div>
                 )}

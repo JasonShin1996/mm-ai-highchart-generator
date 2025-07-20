@@ -10,9 +10,16 @@ const Index = () => {
   return (
     <div className="container mx-auto p-4 md:p-8 max-w-4xl">
       <header className="text-center mb-12">
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-          MM AI Highcharts圖表生成器
-        </h1>
+        <div className="flex items-center justify-center mb-4">
+          <img 
+            src="/capybara_orange_remove_background.png" 
+            alt="MM Logo" 
+            className="w-10 h-10 md:w-14 md:h-14 mr-4"
+          />
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
+            MM AI Highcharts圖表生成器
+          </h1>
+        </div>
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
           選擇您的數據源，用自然語言描述，讓 AI 為您生成互動式圖表
         </p>

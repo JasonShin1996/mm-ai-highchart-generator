@@ -125,7 +125,7 @@ const DatabaseChart = () => {
   }, []);
 
   // 生成圖表
-  const generateChartSmart = async () => {
+  const generateChartSmart = async (selectedDate?: string) => {
     if (!databaseData) {
       toast({
         title: "錯誤",
@@ -144,7 +144,8 @@ const DatabaseChart = () => {
       setGeneratedCode,
       () => {}, // 不設置 isLoading
       setIsOptimizing,
-      toast
+      toast,
+      selectedDate
     );
   };
 
@@ -321,7 +322,7 @@ const DatabaseChart = () => {
                 {/* 生成按鈕 */}
                 <div className="flex items-center gap-4 pt-4">
                   <Button
-                    onClick={generateChartSmart}
+                    onClick={() => generateChartSmart()}
                     disabled={isOptimizing || !prompt.trim() || !selectedChartType}
                     className="flex items-center space-x-2"
                   >
@@ -398,6 +399,13 @@ const DatabaseChart = () => {
                     <SettingsPanel
                       chartOptions={chartOptions}
                       onOptionsChange={isOptimizing ? undefined : handleChartOptionsChange}
+                      databaseData={databaseData}
+                      onDateChange={(selectedDate) => {
+                        // 當用戶選擇新日期時，重新生成圖表
+                        if (selectedDate && prompt && selectedChartType) {
+                          generateChartSmart(selectedDate);
+                        }
+                      }}
                     />
                   </div>
                 )}

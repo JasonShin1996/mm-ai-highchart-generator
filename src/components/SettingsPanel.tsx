@@ -1,12 +1,58 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import { ConverterFactory } from '@/converters';
 
-const SettingsPanel = ({ chartOptions, onOptionsChange }) => {
+const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChange }) => {
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string>('');
+
+  // 檢查是否為餅圖或環形圖
+  const isPieChart = chartOptions.chart?.type === 'pie' || 
+                    chartOptions.series?.some(series => series.type === 'pie');
+
+  // 獲取可用日期列表
+  useEffect(() => {
+    if (isPieChart && databaseData && databaseData.length > 0) {
+      try {
+        const factory = ConverterFactory.getInstance();
+        const converter = factory.getConverter('pie');
+        if (converter && typeof (converter as any).getAvailableDates === 'function') {
+          const dates = (converter as any).getAvailableDates(databaseData);
+          setAvailableDates(dates);
+          
+          // 如果沒有選定日期，使用最後一個日期
+          if (!selectedDate && dates.length > 0) {
+            const lastDate = dates[dates.length - 1];
+            setSelectedDate(lastDate);
+            if (onDateChange) {
+              onDateChange(lastDate);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('獲取可用日期失敗:', error);
+      }
+    }
+  }, [isPieChart, databaseData, selectedDate, onDateChange]);
+
+  // 格式化日期顯示
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return dateString;
+    }
+    
+    const currentYear = new Date().getFullYear();
+    if (date.getFullYear() === currentYear) {
+      return `${date.getMonth() + 1}月${date.getDate()}日`;
+    }
+    return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+  };
   const updateChartOptions = (path, value) => {
     if (!onOptionsChange) return; // 如果沒有 onOptionsChange 函數，直接返回
     
@@ -289,6 +335,36 @@ const SettingsPanel = ({ chartOptions, onOptionsChange }) => {
               />
               <Label htmlFor="legend-enabled">顯示圖例</Label>
             </div>
+
+            {/* 餅圖日期選擇器 */}
+            {isPieChart && availableDates.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="pie-date-selector">選擇日期</Label>
+                <Select
+                  value={selectedDate}
+                  onValueChange={(value) => {
+                    setSelectedDate(value);
+                    if (onDateChange) {
+                      onDateChange(value);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="選擇日期" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableDates.map((date) => (
+                      <SelectItem key={date} value={date}>
+                        {formatDate(date)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500">
+                  選擇要顯示在餅圖上的數據日期
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 

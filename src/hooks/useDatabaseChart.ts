@@ -1,139 +1,32 @@
 import { generateChartConfig } from '../services/gemini';
 import { generateMMTheme } from '../utils/chartTheme';
+import { ConverterFactory } from '../converters';
 
-// 散佈圖數據驗證和轉換
-const validateAndConvertScatterData = (databaseData: any[]) => {
-  // 1. 檢查數據數量
-  if (databaseData.length !== 2) {
-    throw new Error('散佈圖需要選擇恰好 2 筆 M平方資料庫數據');
-  }
+// 注意：散佈圖數據驗證和轉換邏輯已移至 ScatterConverter 中
 
-  const [data1, data2] = databaseData;
-
-  // 2. 檢查數據完整性
-  if (!data1.data || !data2.data || data1.data.length === 0 || data2.data.length === 0) {
-    throw new Error('數據不完整，請確保兩筆數據都包含有效的時間序列');
-  }
-
-  // 3. 檢查頻率一致性（如果數據包含頻率信息）
-  if (data1.frequency && data2.frequency && data1.frequency !== data2.frequency) {
-    throw new Error(`頻率不一致：${data1.frequency} vs ${data2.frequency}，請選擇相同頻率的數據`);
-  }
-
-  // 4. 檢查時間範圍重疊
-  const dates1 = new Set(data1.data.map((point: any) => point.date));
-  const dates2 = new Set(data2.data.map((point: any) => point.date));
-  const commonDates = [...dates1].filter(date => dates2.has(date));
-
-  if (commonDates.length === 0) {
-    throw new Error('兩筆數據沒有共同的時間點，無法生成散佈圖');
-  }
-
-  // 5. 檢查數據點數量
-  if (Math.abs(data1.data.length - data2.data.length) > Math.max(data1.data.length, data2.data.length) * 0.1) {
-    console.warn('警告：兩筆數據的數據點數量差異較大，可能影響散佈圖效果');
-  }
-
-  // 6. 轉換為散佈圖格式
-  const scatterData = [];
-  const processedDates = new Set();
-
-  for (const point1 of data1.data) {
-    if (!point1.date || point1.value === undefined || point1.value === null) continue;
-    
-    // 找到對應的數據點2
-    const point2 = data2.data.find((p: any) => p.date === point1.date);
-    if (!point2 || point2.value === undefined || point2.value === null) continue;
-
-    const value1 = parseFloat(point1.value);
-    const value2 = parseFloat(point2.value);
-    
-    if (isNaN(value1) || isNaN(value2)) continue;
-
-    scatterData.push([value1, value2]);
-    processedDates.add(point1.date);
-  }
-
-  if (scatterData.length === 0) {
-    throw new Error('沒有有效的數據點可以生成散佈圖');
-  }
-
-  if (scatterData.length < 5) {
-    console.warn('警告：有效數據點較少，散佈圖可能不夠清晰');
-  }
-
-  return [{
-    name: `${data1.name_tc || data1.id} vs ${data2.name_tc || data2.id}`,
-    type: 'scatter',
-    data: scatterData
-  }];
-};
-
-// 將資料庫數據轉換為 Highcharts 格式
-const convertDatabaseToHighcharts = (databaseData: any[], chartType: string) => {
+// 將資料庫數據轉換為 Highcharts 格式 - 使用策略模式
+const convertDatabaseToHighcharts = (databaseData: any[], chartType: string, options?: { selectedDate?: string }) => {
   if (!databaseData || databaseData.length === 0) {
     return [];
   }
 
   console.log('🔍 轉換資料庫數據:', databaseData); // 調試
 
-  // 根據圖表類型決定數據格式
-  if (chartType === 'scatter') {
-    // 散佈圖特殊處理
-    return validateAndConvertScatterData(databaseData);
-  } else if (chartType === 'bubble') {
-    // 泡泡圖需要 [x, y] 格式
-    return databaseData.map(item => ({
-      name: item.name_tc || item.id,
-      type: chartType,
-      data: (item.data || []).map((point: any, index: number) => {
-        if (!point || point.value === undefined || point.value === null) {
-          return null;
-        }
-        const value = parseFloat(point.value);
-        if (isNaN(value)) {
-          return null;
-        }
-        // 散佈圖使用索引作為 X軸，數值作為 Y軸
-        return [index, value];
-      }).filter(point => point !== null)
-    }));
-  } else if (chartType === 'combo') {
-    // 組合圖：第一個系列為柱狀圖，第二個系列為線圖
-    // 需要雙Y軸支援，第一個系列使用左軸(yAxis: 0)，第二個系列使用右軸(yAxis: 1)
-    return databaseData.map((item, index) => ({
-      name: item.name_tc || item.id,
-      type: index === 0 ? 'column' : 'line', // 第一個系列用柱狀圖，第二個系列用線圖
-      yAxis: index === 0 ? 0 : 1, // 第一個系列用左軸，第二個系列用右軸
-      data: (item.data || []).map((point: any) => {
-        if (!point || !point.date || point.value === undefined || point.value === null) {
-          return null;
-        }
-        const timestamp = new Date(point.date).getTime();
-        const value = parseFloat(point.value);
-        if (isNaN(timestamp) || isNaN(value)) {
-          return null;
-        }
-        return [timestamp, value];
-      }).filter(point => point !== null)
-    }));
-  } else {
-    // 其他圖表類型使用標準格式
-    return databaseData.map(item => ({
-      name: item.name_tc || item.id,
-      type: chartType === 'stacked_column' ? 'column' : chartType, // 堆疊柱狀圖實際上是 column 類型
-      data: (item.data || []).map((point: any) => {
-        if (!point || !point.date || point.value === undefined || point.value === null) {
-          return null;
-        }
-        const timestamp = new Date(point.date).getTime();
-        const value = parseFloat(point.value);
-        if (isNaN(timestamp) || isNaN(value)) {
-          return null;
-        }
-        return [timestamp, value];
-      }).filter(point => point !== null)
-    }));
+  try {
+    // 使用策略模式：通過工廠獲取對應的轉換器
+    const converterFactory = ConverterFactory.getInstance();
+    const converter = converterFactory.getConverter(chartType);
+    
+    console.log(`🎯 使用轉換器: ${converter.getName()} 處理圖表類型: ${chartType}`);
+    
+    // 使用轉換器進行數據轉換，傳遞選項
+    return converter.convert(databaseData, { 
+      chartType, 
+      selectedDate: options?.selectedDate 
+    });
+  } catch (error) {
+    console.error('❌ 數據轉換失敗:', error);
+    throw error;
   }
 };
 
@@ -239,7 +132,8 @@ export const useDatabaseChart = () => {
     setGeneratedCode: (code: string) => void,
     setIsLoading: (loading: boolean) => void,
     setIsOptimizing: (optimizing: boolean) => void,
-    toast: any
+    toast: any,
+    selectedDate?: string
   ) => {
     if (!databaseData || databaseData.length === 0) {
       toast({
@@ -271,7 +165,7 @@ export const useDatabaseChart = () => {
     try {
       // 階段 1：立即組裝並顯示基礎圖表
       console.log('📊 原始資料庫數據:', databaseData);
-      const seriesData = convertDatabaseToHighcharts(databaseData, selectedChartType);
+      const seriesData = convertDatabaseToHighcharts(databaseData, selectedChartType, { selectedDate });
       console.log('🔄 轉換後的 series 數據:', seriesData);
       
       // 驗證數據
