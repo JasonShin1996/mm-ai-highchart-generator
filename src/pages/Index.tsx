@@ -37,8 +37,8 @@ const Index = () => {
               <p>✓ AI 自動分析數據特性</p>
               <p>✓ 智能推薦圖表類型</p>
               <p>✓ 即時數據預覽和編輯</p>
-            </div>
-            <Button 
+                </div>
+                    <Button 
               className="mt-6 w-full group-hover:bg-blue-600 transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
@@ -47,7 +47,7 @@ const Index = () => {
             >
               開始使用
               <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
+                  </Button>
           </CardContent>
         </Card>
 
@@ -57,9 +57,9 @@ const Index = () => {
           <CardHeader className="text-center pb-4">
             <div className="mx-auto mb-4 p-4 bg-green-100 rounded-full w-16 h-16 flex items-center justify-center group-hover:bg-green-200 transition-colors">
               <Database className="h-8 w-8 text-green-600" />
-            </div>
+                  </div>
             <CardTitle className="text-xl text-gray-900">M平方資料庫</CardTitle>
-          </CardHeader>
+            </CardHeader>
           <CardContent className="text-center">
             <p className="text-gray-600 mb-6">
               搜尋 M平方資料庫中的時間序列數據，快速生成專業的金融圖表
@@ -69,8 +69,8 @@ const Index = () => {
               <p>✓ 專業的時間序列圖表</p>
               <p>✓ 支援多數據系列組合</p>
               <p>✓ 自動雙Y軸配置</p>
-            </div>
-            <Button 
+                </div>
+                  <Button
               className="mt-6 w-full group-hover:bg-green-600 transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
@@ -79,9 +79,9 @@ const Index = () => {
             >
               開始使用
               <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
+                  </Button>
+            </CardContent>
+          </Card>
       </div>
 
       {/* 功能特色說明 */}
@@ -91,31 +91,31 @@ const Index = () => {
           <div className="text-center">
             <div className="mx-auto mb-4 p-3 bg-purple-100 rounded-full w-12 h-12 flex items-center justify-center">
               <span className="text-purple-600 font-bold text-lg">AI</span>
-            </div>
+                </div>
             <h3 className="font-semibold text-gray-900 mb-2">AI 智能分析</h3>
             <p className="text-gray-600 text-sm">
               自動分析數據特性，推薦最適合的圖表類型和樣式
             </p>
-          </div>
+                </div>
           <div className="text-center">
             <div className="mx-auto mb-4 p-3 bg-orange-100 rounded-full w-12 h-12 flex items-center justify-center">
               <span className="text-orange-600 font-bold text-lg">⚡</span>
-            </div>
+                </div>
             <h3 className="font-semibold text-gray-900 mb-2">快速生成</h3>
             <p className="text-gray-600 text-sm">
               使用自然語言描述需求，AI 快速生成互動式圖表
             </p>
-          </div>
+                  </div>
           <div className="text-center">
             <div className="mx-auto mb-4 p-3 bg-red-100 rounded-full w-12 h-12 flex items-center justify-center">
               <span className="text-red-600 font-bold text-lg">🎨</span>
-            </div>
+                  </div>
             <h3 className="font-semibold text-gray-900 mb-2">專業樣式</h3>
             <p className="text-gray-600 text-sm">
               基於 M平方設計規範，生成專業美觀的圖表樣式
             </p>
-          </div>
-        </div>
+                </div>
+              </div>
       </div>
     </div>
   );

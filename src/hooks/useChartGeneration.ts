@@ -170,30 +170,46 @@ const getChartTypeSpecificPrompt = (
   const basePrompt = `
 你是一位專業的數據視覺化專家，專門使用 Highcharts 創建互動式圖表。
 
+第一步：判斷處理策略
+
+數據量：${totalDataLength || dataLength} 行
+圖表類型：${chartType}
+
+如果數據量大（>100行）且適合自動組裝（時間序列+多數值欄位），例如line chart, column chart, area chart，請在JSON最前面加上：
+{
+    "_time_series_data": true,
+    "_assembly_instructions": {
+        "timeColumn": "時間欄位名稱",
+        "series": [
+            {"column": "數值欄位1", "name": "友善顯示名稱1", "type": "根據用戶需求決定"},
+            {"column": "數值欄位2", "name": "友善顯示名稱2", "type": "根據用戶需求決定"}
+        ]
+    },
+    ... 其他配置
+}
+
+重要：如果使用自動組裝，最終的 series 將會是類似以下格式，但欄位名稱會是使用者提供的欄位名稱：
+      "series": [
+        {
+          "data": [[時間戳1, 數值1], [時間戳2, 數值2], [時間戳3, 數值3], ...],
+          "name": "Variable1",
+          "type": "area"
+        },
+        ... 其他 series
+      ]
+      其中 data 是 [時間戳毫秒, 數值] 的二維陣列，每個 series 包含 data、name、type 三個屬性。
+      
+      如果數據量小於100行，請忽略此策略。
+
+
+否則請按照以下完整指令處理：
+
 數據來源：${dataSourceInfo}
 數據欄位：${headers}
 數據樣本（${dataLength} 筆）：${dataSample}
 用戶需求：${userPrompt}
 
 **數據處理策略：**
-如果數據量大（>100行，當前：${totalDataLength || dataLength}行）且適合時間序列圖表（line/column/area），請在JSON中添加：
-{
-  "_time_series_data": true,
-  "_assembly_instructions": {
-    "timeColumn": "時間欄位名稱",
-    "series": [
-      {"column": "數值欄位1", "name": "友善顯示名稱1", "type": "根據用戶需求決定"},
-      {"column": "數值欄位2", "name": "友善顯示名稱2", "type": "根據用戶需求決定"}
-    ]
-  },
-  "series": [
-    {"name": "系列名稱", "type": "${chartType}", "data": [[時間戳, 數值], ...]},
-    {"name": "系列名稱", "type": "${chartType}", "data": [[時間戳, 數值], ...]}
-  ],
-  ... 其他配置
-}
-
-否則請按照以下完整指令處理：
 
 任務: 根據使用者提供的數據和自然語言需求，產生一個完整且有效的 Highcharts JSON 設定物件。
 限制:
