@@ -152,7 +152,8 @@ const getChartTypeSpecificPrompt = (
   userPrompt: string, 
   headers: string, 
   dataSample: string, 
-  dataSourceType?: string
+  dataSourceType?: string,
+  totalDataLength?: number
 ) => {
   const getDataLength = () => {
     try {
@@ -172,17 +173,42 @@ const getChartTypeSpecificPrompt = (
 數據來源：${dataSourceInfo}
 數據欄位：${headers}
 數據樣本（${dataLength} 筆）：${dataSample}
-
 用戶需求：${userPrompt}
 
-請根據用戶需求生成一個完整的 Highcharts 配置 JSON。要求：
+**數據處理策略：**
+如果數據量大（>100行，當前：${totalDataLength || dataLength}行）且適合時間序列圖表（line/column/area），請在JSON中添加：
+{
+  "_time_series_data": true,
+  "_assembly_instructions": {
+    "timeColumn": "時間欄位名稱",
+    "series": [
+      {"column": "數值欄位1", "name": "友善顯示名稱1", "type": "根據用戶需求決定"},
+      {"column": "數值欄位2", "name": "友善顯示名稱2", "type": "根據用戶需求決定"}
+    ]
+  },
+  "series": [
+    {"name": "系列名稱", "type": "${chartType}", "data": [[時間戳, 數值], ...]},
+    {"name": "系列名稱", "type": "${chartType}", "data": [[時間戳, 數值], ...]}
+  ],
+  ... 其他配置
+}
+
+否則請按照以下完整指令處理：
+
+任務: 根據使用者提供的數據和自然語言需求，產生一個完整且有效的 Highcharts JSON 設定物件。
+限制:
+1. 你的回覆 **必須** 只包含一個格式完全正確的 JSON 物件。
+2. **絕對不要** 在 JSON 物件前後包含任何文字、註解、或 markdown 語法。
+3. **不要** 使用 \`data.csv\` 或外部 URL 來載入數據。所有需要的數據都應該直接寫在 \`series\` 設定中。
+4. 根據下方提供的數據範例來決定 x 軸 (categories/datetime) 和 y 軸 (data) 的對應關係。
+
+**基本要求：**
 1. 使用 ${chartType} 圖表類型
 2. 確保數據格式正確
 3. 包含適當的標題、軸標籤和圖例
 4. 使用適合的顏色配置
 5. 圖例預設位置在圖表下方（verticalAlign: "bottom"），只有用戶特別指定時才改變
 6. 返回純 JSON 格式，不要包含 markdown 標記
-
 `;
 
   // 使用 chartTypeTemplates 獲取專門的模板
@@ -254,7 +280,7 @@ export const useChartGeneration = () => {
       const dataSample = JSON.stringify(optimizedSample, null, 2);
       
       // 使用圖表類型特定的 prompt 模板
-      const smartPrompt = getChartTypeSpecificPrompt(selectedChartType, prompt, headers, dataSample, 'localfile');
+      const smartPrompt = getChartTypeSpecificPrompt(selectedChartType, prompt, headers, dataSample, 'localfile', fileData.data.length);
 
       const chartConfigString = await generateChartConfig(smartPrompt);
       let configStr = chartConfigString.replace(/^```json\s*/, '').replace(/```$/, '');
