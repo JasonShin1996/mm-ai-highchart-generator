@@ -116,13 +116,48 @@ interface ChartGalleryProps {
   selectedChartType: string | null;
   onChartTypeSelect: (chartType: string) => void;
   recommendedTypes?: string[];
+  disabled?: boolean;
+  databaseData?: any[];
+  onAvailableTypesChange?: (availableTypes: string[]) => void;
 }
 
 const ChartGallery: React.FC<ChartGalleryProps> = ({
   selectedChartType,
   onChartTypeSelect,
-  recommendedTypes = []
+  recommendedTypes = [],
+  disabled = false,
+  databaseData,
+  onAvailableTypesChange
 }) => {
+  
+  // 計算可用的圖表類型，供擲筊功能使用
+  const getAvailableChartTypes = () => {
+    return chartTypes.filter(chart => {
+      // 排除擲筊選項本身
+      if (chart.id === 'random') {
+        return false;
+      }
+      
+      // 散佈圖特殊處理：只有當資料庫數據恰好為2個時才可用
+      const isScatterDisabled = chart.id === 'scatter' && databaseData && databaseData.length !== 2;
+      
+      // 瀑布圖和泡泡圖：當使用M平方數據時禁用（因為這些圖表類型需要特殊的數據格式）
+      const isWaterfallDisabled = chart.id === 'waterfall' && databaseData && databaseData.length > 0;
+      const isBubbleDisabled = chart.id === 'bubble' && databaseData && databaseData.length > 0;
+      
+      const isChartDisabled = disabled || isScatterDisabled || isWaterfallDisabled || isBubbleDisabled;
+      
+      return !isChartDisabled;
+    }).map(chart => chart.id);
+  };
+  
+  // 當可用圖表類型變化時，通知父組件
+  React.useEffect(() => {
+    if (onAvailableTypesChange) {
+      const availableTypes = getAvailableChartTypes();
+      onAvailableTypesChange(availableTypes);
+    }
+  }, [databaseData, disabled, onAvailableTypesChange]);
   return (
     <div className="space-y-4">
       <div className="text-sm text-gray-600 mb-4">
@@ -134,15 +169,30 @@ const ChartGallery: React.FC<ChartGalleryProps> = ({
           const isSelected = selectedChartType === chart.id;
           const isRecommended = recommendedTypes.includes(chart.id);
           
+          // 散佈圖特殊處理：只有當資料庫數據恰好為2個時才可用
+          const isScatterDisabled = chart.id === 'scatter' && databaseData && databaseData.length !== 2;
+          
+          // 瀑布圖和泡泡圖：當使用M平方數據時禁用（因為這些圖表類型需要特殊的數據格式）
+          const isWaterfallDisabled = chart.id === 'waterfall' && databaseData && databaseData.length > 0;
+          const isBubbleDisabled = chart.id === 'bubble' && databaseData && databaseData.length > 0;
+          
+          const isChartDisabled = disabled || isScatterDisabled || isWaterfallDisabled || isBubbleDisabled;
+          
           return (
             <Card 
               key={chart.id}
-              className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
+              className={`transition-all duration-200 ${
+                isChartDisabled 
+                  ? 'cursor-not-allowed opacity-50' 
+                  : 'cursor-pointer hover:shadow-md'
+              } ${
                 isSelected 
                   ? 'ring-2 ring-blue-500 bg-blue-50' 
+                  : isChartDisabled 
+                  ? 'bg-gray-100' 
                   : 'hover:bg-gray-50'
               }`}
-              onClick={() => onChartTypeSelect(chart.id)}
+              onClick={isChartDisabled ? undefined : () => onChartTypeSelect(chart.id)}
             >
               <CardContent className="p-4 text-center">
                 <div className="flex flex-col items-center space-y-2">
@@ -168,6 +218,21 @@ const ChartGallery: React.FC<ChartGalleryProps> = ({
                     <p className="text-xs text-gray-500 leading-tight">
                       {chart.description}
                     </p>
+                    {isScatterDisabled && (
+                      <p className="text-xs text-red-500 leading-tight">
+                        需要恰好選擇2個數據
+                      </p>
+                    )}
+                    {isWaterfallDisabled && (
+                      <p className="text-xs text-red-500 leading-tight">
+                        不支援時間序列數據
+                      </p>
+                    )}
+                    {isBubbleDisabled && (
+                      <p className="text-xs text-red-500 leading-tight">
+                        不支援時間序列數據
+                      </p>
+                    )}
                     <Badge 
                       variant="outline" 
                       className="text-xs"

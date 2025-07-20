@@ -8,6 +8,8 @@ import { Slider } from '@/components/ui/slider';
 
 const SettingsPanel = ({ chartOptions, onOptionsChange }) => {
   const updateChartOptions = (path, value) => {
+    if (!onOptionsChange) return; // 如果沒有 onOptionsChange 函數，直接返回
+    
     const newOptions = JSON.parse(JSON.stringify(chartOptions));
     
     // 使用路徑更新嵌套對象
@@ -23,6 +25,8 @@ const SettingsPanel = ({ chartOptions, onOptionsChange }) => {
   };
 
   const updateSeriesOptions = (seriesIndex, property, value) => {
+    if (!onOptionsChange) return; // 如果沒有 onOptionsChange 函數，直接返回
+    
     const newOptions = JSON.parse(JSON.stringify(chartOptions));
     if (newOptions.series && newOptions.series[seriesIndex]) {
       newOptions.series[seriesIndex][property] = value;
@@ -31,6 +35,8 @@ const SettingsPanel = ({ chartOptions, onOptionsChange }) => {
   };
 
   const updateScatterPlotOptions = (path, value) => {
+    if (!onOptionsChange) return; // 如果沒有 onOptionsChange 函數，直接返回
+    
     const newOptions = JSON.parse(JSON.stringify(chartOptions));
     
     // 確保 plotOptions.scatter 存在
@@ -67,12 +73,14 @@ const SettingsPanel = ({ chartOptions, onOptionsChange }) => {
                 id="chart-title"
                 value={chartOptions.title?.text || ''}
                 onChange={(e) => updateChartOptions('title.text', e.target.value)}
+                disabled={!onOptionsChange}
+                className={!onOptionsChange ? 'opacity-50 cursor-not-allowed' : ''}
               />
             </div>
 
-            {/* Y軸標題 */}
+            {/* 左側Y軸標題 */}
             <div className="space-y-2">
-              <Label htmlFor="y-axis-title">Y軸標題</Label>
+              <Label htmlFor="y-axis-title">左側Y軸標題</Label>
               <Input
                 id="y-axis-title"
                 value={
@@ -89,6 +97,65 @@ const SettingsPanel = ({ chartOptions, onOptionsChange }) => {
                 }}
               />
             </div>
+
+            {/* 右側Y軸標題（僅在雙Y軸時顯示） */}
+            {Array.isArray(chartOptions.yAxis) && chartOptions.yAxis.length > 1 && (
+              <div className="space-y-2">
+                <Label htmlFor="y-axis-title-2">右側Y軸標題</Label>
+                <Input
+                  id="y-axis-title-2"
+                  value={chartOptions.yAxis[1]?.title?.text || ''}
+                  onChange={(e) => updateChartOptions('yAxis.1.title.text', e.target.value)}
+                />
+              </div>
+            )}
+
+            {/* 雙Y軸格式設定（僅在雙Y軸時顯示） */}
+            {Array.isArray(chartOptions.yAxis) && chartOptions.yAxis.length > 1 && (
+              <div className="space-y-3 pt-3 border-t border-gray-200">
+                <div className="text-sm font-medium text-blue-600 mb-2">雙Y軸設定</div>
+                
+                {/* 左側Y軸格式 */}
+                <div className="space-y-2">
+                  <Label htmlFor="y-axis-format-0">左側Y軸格式</Label>
+                  <Select
+                    value={chartOptions.yAxis[0]?.labels?.format || '{value}'}
+                    onValueChange={(value) => updateChartOptions('yAxis.0.labels.format', value)}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="{value}">一般格式</SelectItem>
+                      <SelectItem value="{value:,.0f}">整數格式</SelectItem>
+                      <SelectItem value="{value:,.1f}">小數格式</SelectItem>
+                      <SelectItem value="{value:,.2f}">兩位小數</SelectItem>
+                      <SelectItem value="{value:,.1f}%">百分比</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 右側Y軸格式 */}
+                <div className="space-y-2">
+                  <Label htmlFor="y-axis-format-1">右側Y軸格式</Label>
+                  <Select
+                    value={chartOptions.yAxis[1]?.labels?.format || '{value}'}
+                    onValueChange={(value) => updateChartOptions('yAxis.1.labels.format', value)}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="{value}">一般格式</SelectItem>
+                      <SelectItem value="{value:,.0f}">整數格式</SelectItem>
+                      <SelectItem value="{value:,.1f}">小數格式</SelectItem>
+                      <SelectItem value="{value:,.2f}">兩位小數</SelectItem>
+                      <SelectItem value="{value:,.1f}%">百分比</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
 
             {/* 圖表尺寸 */}
             <div className="space-y-2">
@@ -288,6 +355,25 @@ const SettingsPanel = ({ chartOptions, onOptionsChange }) => {
                         </Select>
                       </div>
                     </div>
+
+                    {/* Y軸選擇（僅在雙Y軸時顯示） */}
+                    {Array.isArray(chartOptions.yAxis) && chartOptions.yAxis.length > 1 && (
+                      <div className="mt-2">
+                        <Label htmlFor={`series-yaxis-${index}`} className="text-sm mb-1 block">使用Y軸</Label>
+                        <Select
+                          value={series.yAxis?.toString() || '0'}
+                          onValueChange={(value) => updateSeriesOptions(index, 'yAxis', parseInt(value))}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">左側Y軸 ({chartOptions.yAxis[0]?.title?.text || '左側Y軸'})</SelectItem>
+                            <SelectItem value="1">右側Y軸 ({chartOptions.yAxis[1]?.title?.text || '右側Y軸'})</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
 
                     {/* 散佈圖專用設置 */}
                     {(series.type === 'scatter' || chartOptions.chart?.type === 'scatter') && (

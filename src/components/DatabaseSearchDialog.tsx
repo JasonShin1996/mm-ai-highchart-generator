@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { searchDatabase, loadDatabaseData } from '@/services/database';
 
 // 國家代碼到國旗 emoji 的映射
 const countryFlags = {
@@ -129,17 +130,7 @@ const DatabaseSearchDialog: React.FC<DatabaseSearchDialogProps> = ({
 
     setIsSearching(true);
     try {
-      const response = await fetch('/api/search-database', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: searchQuery })
-      });
-
-      if (!response.ok) {
-        throw new Error('搜尋失敗');
-      }
-
-      const data = await response.json();
+      const data = await searchDatabase(searchQuery);
       setSearchResults(data.items || []);
       setSelectedItems(new Set()); // 清空選擇
       
@@ -189,18 +180,7 @@ const DatabaseSearchDialog: React.FC<DatabaseSearchDialogProps> = ({
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/load-database-data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stat_ids: Array.from(selectedItems) })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`數據載入失敗 (${response.status}): ${errorData.detail || response.statusText}`);
-      }
-
-      const data = await response.json();
+      const data = await loadDatabaseData(Array.from(selectedItems));
       
       // 將選擇的項目資訊與載入的數據合併
       const enrichedData = data.time_series.map(series => {

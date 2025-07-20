@@ -69,8 +69,9 @@ export async function generateChartConfig(prompt: string): Promise<string> {
 export async function generateChartSuggestion(headers: string[], dataSample: any[]): Promise<ChartSuggestionResponse> {
   const backendUrl = getBackendUrl();
   
-  console.log('發送請求到:', `${backendUrl}/api/analyze-data`); // 調試
-  console.log('發送的數據:', { headers, data_sample: dataSample }); // 調試
+  console.log('🌐 後端 URL:', backendUrl); // 調試
+  console.log('📤 發送請求到:', `${backendUrl}/api/analyze-data`); // 調試
+  console.log('📊 發送的數據:', { headers, data_sample: dataSample }); // 調試
   
   const response = await fetch(`${backendUrl}/api/analyze-data`, {
     method: 'POST',

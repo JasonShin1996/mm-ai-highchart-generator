@@ -12,7 +12,7 @@ const ChartDisplay = ({ chartOptions, isLoading, setChartOptions }) => {
   const chartInstanceRef = useRef(null);
 
   useEffect(() => {
-    if (!chartOptions || !window.Highcharts) return;
+    if (!chartOptions || !window.Highcharts || !chartRef.current) return;
 
     // 清理舊的圖表實例
     if (chartInstanceRef.current) {

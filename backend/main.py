@@ -396,12 +396,12 @@ async def load_database_data(request: DatabaseLoadRequest):
                     time_series_data = []
                     for point in data.get('series', []):
                         time_series_data.append({
-                            'Date': point.get('date', ''),
-                            'Value': point.get('val', 0)
+                            'date': point.get('date', ''),
+                            'value': point.get('val', 0)
                         })
                     
                     # 排序數據（按日期升序）
-                    time_series_data.sort(key=lambda x: x['Date'])
+                    time_series_data.sort(key=lambda x: x['date'])
                     
                     results.append(TimeSeriesData(
                         id=stat_id,
