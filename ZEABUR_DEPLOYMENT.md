@@ -150,3 +150,19 @@ VITE_APP_NAME=MM AI Highcharts圖表生成器
 1. 環境變數是否正確設定
 2. 服務是否正常運行
 3. 網路連接是否正常 
+
+## 環境變數設置
+
+請在 Zeabur 部署時，於「環境變數」區塊設定下列參數：
+
+- `GEMINI_API_KEY`：Google Gemini API 金鑰
+- `SOLR_API_URL`：Solr 搜尋服務 API 端點
+- `BIZ_API_URL`：M平方商業資料 API 端點
+- `BIZ_API_KEY`：M平方商業資料 API 金鑰
+
+---
+
+## 功能說明補充
+
+- 本專案支援三大數據來源（本地端、M平方資料庫、融合數據），請依實際需求啟用相關 API 與設定。
+- 「融合數據」功能目前尚在開發中，部署時可先忽略相關設定。 

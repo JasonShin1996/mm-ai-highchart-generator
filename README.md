@@ -201,6 +201,20 @@ Frontend (React) → Backend (Python FastAPI) → Gemini API
 要連接域名，請導航到 Project > Settings > Domains 並點擊 Connect Domain。
 更多詳情請參閱：[設定自定義域名](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
 
+## 數據來源三大入口
+
+本專案支援三種主要數據來源，讓您靈活選擇最適合的資料分析方式：
+
+1. **本地端數據**  
+   上傳您的 CSV 或 Excel 檔案，AI 會自動分析數據並生成互動式圖表。
+
+2. **M平方資料庫數據**  
+   直接搜尋 M平方官方金融資料庫，快速取得專業的時間序列數據並生成圖表。
+
+3. **融合數據**  
+   結合本地檔案與 M平方資料庫數據，進行混合分析與進階圖表組合。  
+   �� *此功能目前開發中，敬請期待！*
+
 ## 📋 專案資訊
 
 **Lovable Project URL**: https://lovable.dev/projects/7787b552-14b3-44ad-bf3c-fc4ff25a67c8

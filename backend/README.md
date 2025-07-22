@@ -27,10 +27,21 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 4. **API 文檔**
 運行後訪問：http://localhost:8000/docs
 
-## API 端點
+## 環境變數說明
 
-- `GET /` - 健康檢查
-- `POST /api/generate-chart` - 生成圖表配置
+- `GEMINI_API_KEY`：Google Gemini API 金鑰（必填，用於 AI 圖表生成）
+- `SOLR_API_URL`：Solr 搜尋服務 API 端點（必填，用於資料查詢）
+- `BIZ_API_URL`：M平方商業資料 API 端點（必填，用於取得金融數據）
+- `BIZ_API_KEY`：M平方商業資料 API 金鑰（必填，授權存取 BIZ API）
+
+## API 端點一覽
+
+- `GET /`  
+  健康檢查
+- `POST /api/generate-chart`  
+  根據用戶描述與數據，產生 Highcharts 圖表配置
+- `GET /api/database-search`  
+  查詢 M平方資料庫，取得可用的金融數據（請說明查詢參數）
 
 ## 安全性
 
