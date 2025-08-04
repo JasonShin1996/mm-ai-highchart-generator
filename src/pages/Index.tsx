@@ -91,31 +91,34 @@ const Index = () => {
           </Card>
 
         {/* 融合數據選項 */}
-        <Card className="shadow-lg transition-shadow duration-300 opacity-60 cursor-not-allowed">
+        <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 cursor-pointer group"
+              onClick={() => navigate('/fusion')}>
           <CardHeader className="text-center pb-4">
-            <div className="mx-auto mb-4 p-4 bg-red-100 rounded-full w-16 h-16 flex items-center justify-center">
+            <div className="mx-auto mb-4 p-4 bg-red-100 rounded-full w-16 h-16 flex items-center justify-center group-hover:bg-red-200 transition-colors">
               <GitBranch className="h-8 w-8 text-red-600" />
             </div>
-            <CardTitle className="text-xl text-gray-900">融合數據</CardTitle>
+            <CardTitle className="text-xl text-gray-900">數據融合</CardTitle>
           </CardHeader>
           <CardContent className="text-center">
             <p className="text-gray-600 mb-6">
-              結合本地檔案和 M平方資料庫數據，創建更豐富的混合圖表分析
+              上傳本地數據生成基礎圖表，再融合 M平方數據庫的額外數據系列
             </p>
             <div className="space-y-2 text-sm text-gray-500">
-              <p>✓ 本地 + 資料庫數據融合</p>
-              <p>✓ 多源數據對比分析</p>
-              <p>✓ 智能數據關聯</p>
-              <p>✓ 進階圖表組合</p>
+              <p>✓ 本地數據 + 數據庫數據</p>
+              <p>✓ 動態添加數據系列</p>
+              <p>✓ 智能數據轉換</p>
+              <p>✓ 保持原有圖表設定</p>
             </div>
-            <div className="mt-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-yellow-700 text-sm font-medium">
-                🚧 開發中
-              </p>
-              <p className="text-yellow-600 text-xs mt-1">
-                敬請期待
-              </p>
-            </div>
+            <Button
+              className="mt-6 w-full group-hover:bg-red-600 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate('/fusion');
+              }}
+            >
+              開始使用
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
           </CardContent>
         </Card>
       </div>

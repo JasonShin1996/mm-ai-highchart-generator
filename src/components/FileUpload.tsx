@@ -9,7 +9,7 @@ declare global {
   }
 }
 
-const FileUpload = ({ onFileUpload }) => {
+const FileUpload = ({ onFileUpload, colorTheme = 'blue' }) => {
   const [dragActive, setDragActive] = useState(false);
   const [fileName, setFileName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -208,14 +208,26 @@ const FileUpload = ({ onFileUpload }) => {
     <div className="w-full max-w-md">
       {fileName ? (
         // 已上傳文件的簡潔顯示
-        <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className={`flex items-center justify-between p-3 rounded-lg ${
+          colorTheme === 'red' 
+            ? 'bg-red-50 border border-red-200' 
+            : 'bg-blue-50 border border-blue-200'
+        }`}>
           <div className="flex items-center space-x-2 min-w-0">
-            <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
-            <span className="text-sm font-medium text-blue-900 truncate">{fileName}</span>
+            <FileText className={`w-4 h-4 flex-shrink-0 ${
+              colorTheme === 'red' ? 'text-red-600' : 'text-blue-600'
+            }`} />
+            <span className={`text-sm font-medium truncate ${
+              colorTheme === 'red' ? 'text-red-900' : 'text-blue-900'
+            }`}>{fileName}</span>
           </div>
           <button
             onClick={clearFile}
-            className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 flex-shrink-0"
+            className={`p-1 rounded-full flex-shrink-0 ${
+              colorTheme === 'red' 
+                ? 'text-red-600 hover:text-red-800 hover:bg-red-100' 
+                : 'text-blue-600 hover:text-blue-800 hover:bg-blue-100'
+            }`}
           >
             <X className="w-4 h-4" />
           </button>
@@ -225,7 +237,9 @@ const FileUpload = ({ onFileUpload }) => {
         <div
           className={`relative flex items-center justify-center h-12 border border-dashed rounded-lg cursor-pointer transition-all duration-200 ${
             dragActive 
-              ? 'border-blue-400 bg-blue-50' 
+              ? colorTheme === 'red' 
+                ? 'border-red-400 bg-red-50' 
+                : 'border-blue-400 bg-blue-50'
               : 'border-gray-300 bg-gray-50 hover:border-gray-400 hover:bg-gray-100'
           } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
           onDragEnter={handleDrag}
@@ -236,7 +250,9 @@ const FileUpload = ({ onFileUpload }) => {
         >
           {isProcessing ? (
             <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <div className={`w-4 h-4 border-2 border-t-transparent rounded-full animate-spin ${
+                colorTheme === 'red' ? 'border-red-500' : 'border-blue-500'
+              }`}></div>
               <span className="text-sm text-gray-600">處理檔案中...</span>
             </div>
           ) : (

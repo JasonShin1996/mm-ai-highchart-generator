@@ -119,6 +119,7 @@ interface ChartGalleryProps {
   disabled?: boolean;
   databaseData?: any[];
   onAvailableTypesChange?: (availableTypes: string[]) => void;
+  colorTheme?: 'blue' | 'red';
 }
 
 const ChartGallery: React.FC<ChartGalleryProps> = ({
@@ -127,7 +128,8 @@ const ChartGallery: React.FC<ChartGalleryProps> = ({
   recommendedTypes = [],
   disabled = false,
   databaseData,
-  onAvailableTypesChange
+  onAvailableTypesChange,
+  colorTheme = 'blue'
 }) => {
   
   // 計算可用的圖表類型，供擲筊功能使用
@@ -248,11 +250,21 @@ const ChartGallery: React.FC<ChartGalleryProps> = ({
       </div>
       
       {selectedChartType && (
-        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center text-sm text-blue-700">
-            <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+        <div className={`mt-4 p-3 ${
+          colorTheme === 'red' 
+            ? 'bg-red-50 border border-red-200' 
+            : 'bg-blue-50 border border-blue-200'
+        } rounded-lg`}>
+          <div className={`flex items-center text-sm ${
+            colorTheme === 'red' ? 'text-red-700' : 'text-blue-700'
+          }`}>
+            <div className={`w-2 h-2 rounded-full mr-2 ${
+              colorTheme === 'red' ? 'bg-red-500' : 'bg-blue-500'
+            }`}></div>
             已選擇：{chartTypes.find(c => c.id === selectedChartType)?.name}
-            <span className="ml-2 text-blue-600">
+            <span className={`ml-2 ${
+              colorTheme === 'red' ? 'text-red-600' : 'text-blue-600'
+            }`}>
               - AI 將為此圖表類型提供專門的配置建議
             </span>
           </div>
