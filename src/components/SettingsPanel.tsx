@@ -245,6 +245,7 @@ const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChan
                     
                     // 處理可能的數組情況 - yAxis
                     if (Array.isArray(newOptions.yAxis)) {
+                      // 左側Y軸 (index 0)
                       if (!newOptions.yAxis[0]) newOptions.yAxis[0] = {};
                       if (!newOptions.yAxis[0].labels) newOptions.yAxis[0].labels = {};
                       if (!newOptions.yAxis[0].labels.style) newOptions.yAxis[0].labels.style = {};
@@ -252,6 +253,16 @@ const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChan
                       if (!newOptions.yAxis[0].title) newOptions.yAxis[0].title = {};
                       if (!newOptions.yAxis[0].title.style) newOptions.yAxis[0].title.style = {};
                       newOptions.yAxis[0].title.style.fontSize = '17px';
+                      
+                      // 右側Y軸 (index 1) - 新增
+                      if (newOptions.yAxis[1]) {
+                        if (!newOptions.yAxis[1].labels) newOptions.yAxis[1].labels = {};
+                        if (!newOptions.yAxis[1].labels.style) newOptions.yAxis[1].labels.style = {};
+                        newOptions.yAxis[1].labels.style.fontSize = '16px';
+                        if (!newOptions.yAxis[1].title) newOptions.yAxis[1].title = {};
+                        if (!newOptions.yAxis[1].title.style) newOptions.yAxis[1].title.style = {};
+                        newOptions.yAxis[1].title.style.fontSize = '17px';
+                      }
                     } else {
                       if (!newOptions.yAxis) newOptions.yAxis = {};
                       if (!newOptions.yAxis.labels) newOptions.yAxis.labels = {};
@@ -290,6 +301,7 @@ const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChan
                     
                     // 處理可能的數組情況 - yAxis
                     if (Array.isArray(newOptions.yAxis)) {
+                      // 左側Y軸 (index 0)
                       if (!newOptions.yAxis[0]) newOptions.yAxis[0] = {};
                       if (!newOptions.yAxis[0].labels) newOptions.yAxis[0].labels = {};
                       if (!newOptions.yAxis[0].labels.style) newOptions.yAxis[0].labels.style = {};
@@ -297,6 +309,16 @@ const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChan
                       if (!newOptions.yAxis[0].title) newOptions.yAxis[0].title = {};
                       if (!newOptions.yAxis[0].title.style) newOptions.yAxis[0].title.style = {};
                       newOptions.yAxis[0].title.style.fontSize = '11px';
+                      
+                      // 右側Y軸 (index 1) - 新增
+                      if (newOptions.yAxis[1]) {
+                        if (!newOptions.yAxis[1].labels) newOptions.yAxis[1].labels = {};
+                        if (!newOptions.yAxis[1].labels.style) newOptions.yAxis[1].labels.style = {};
+                        newOptions.yAxis[1].labels.style.fontSize = '11px';
+                        if (!newOptions.yAxis[1].title) newOptions.yAxis[1].title = {};
+                        if (!newOptions.yAxis[1].title.style) newOptions.yAxis[1].title.style = {};
+                        newOptions.yAxis[1].title.style.fontSize = '11px';
+                      }
                     } else {
                       if (!newOptions.yAxis) newOptions.yAxis = {};
                       if (!newOptions.yAxis.labels) newOptions.yAxis.labels = {};

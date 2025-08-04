@@ -369,8 +369,8 @@ async def load_database_data(request: DatabaseLoadRequest):
     if not biz_url or not biz_api_key:
         raise HTTPException(status_code=500, detail="Biz API configuration not found")
     
-    if len(request.stat_ids) > 5:
-        raise HTTPException(status_code=400, detail="最多只能載入5筆資料")
+    if len(request.stat_ids) > 15:
+        raise HTTPException(status_code=400, detail="最多只能載入15筆資料")
     
     headers = {'X-Api-Key': biz_api_key}
     params = {'history': 'true'}

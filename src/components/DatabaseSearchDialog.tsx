@@ -157,9 +157,9 @@ const DatabaseSearchDialog: React.FC<DatabaseSearchDialogProps> = ({
     if (newSelected.has(itemId)) {
       newSelected.delete(itemId);
     } else {
-      if (newSelected.size >= 5) {
+      if (newSelected.size >= 15) {
         toast({
-          title: "最多只能選擇5筆資料",
+          title: "最多只能選擇15筆資料",
           variant: "destructive",
         });
         return;
@@ -225,7 +225,7 @@ const DatabaseSearchDialog: React.FC<DatabaseSearchDialogProps> = ({
             搜尋公司資料庫
           </DialogTitle>
           <DialogDescription>
-            搜尋並選擇最多5個時間序列數據進行分析
+            搜尋並選擇最多15個時間序列數據進行分析
           </DialogDescription>
         </DialogHeader>
 
@@ -283,7 +283,7 @@ const DatabaseSearchDialog: React.FC<DatabaseSearchDialogProps> = ({
                     ) : (
                       <>
                         <Database className="mr-2 h-4 w-4" />
-                        載入選定數據 ({selectedItems.size}/5)
+                        載入選定數據 ({selectedItems.size}/15)
                       </>
                     )}
                   </Button>
