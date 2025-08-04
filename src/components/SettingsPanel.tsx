@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import { X } from 'lucide-react';
 import { ConverterFactory } from '@/converters';
 
 const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChange }) => {
@@ -98,6 +99,15 @@ const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChan
     }
     current[keys[keys.length - 1]] = value;
     
+    onOptionsChange(newOptions);
+  };
+
+  // 刪除數據系列
+  const deleteSeries = (seriesIndex) => {
+    if (!onOptionsChange) return;
+    
+    const newOptions = JSON.parse(JSON.stringify(chartOptions));
+    newOptions.series.splice(seriesIndex, 1);
     onOptionsChange(newOptions);
   };
 
@@ -399,8 +409,17 @@ const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChan
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {chartOptions.series?.map((series, index) => (
                 <Card key={index} className="p-3 bg-gray-50 border border-gray-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="font-semibold text-base">系列 {index + 1}：{series.name || '未命名'}</div>
+                    <button
+                      onClick={() => deleteSeries(index)}
+                      className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors"
+                      title="刪除此系列"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                   <div className="space-y-2">
-                    <div className="font-semibold text-base mb-1">系列 {index + 1}：{series.name || '未命名'}</div>
                     {/* 系列名稱 */}
                     <div>
                       <Label htmlFor={`series-name-${index}`}>名稱</Label>
