@@ -480,21 +480,11 @@ const DataFusion = () => {
               {/* 融合數據顯示 */}
               {fusedData.length > 0 && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <Plus className="h-4 w-4 mr-2 text-red-600" />
-                      <span className="text-red-800 font-medium">
-                        已融合 {fusedData.length} 個數據系列
-                      </span>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setFusedData([])}
-                      className="text-red-600 border-red-200 hover:bg-red-50"
-                    >
-                      清除融合數據
-                    </Button>
+                  <div className="flex items-center">
+                    <Plus className="h-4 w-4 mr-2 text-red-600" />
+                    <span className="text-red-800 font-medium">
+                      已融合 {fusedData.length} 個數據系列
+                    </span>
                   </div>
                 </div>
               )}
