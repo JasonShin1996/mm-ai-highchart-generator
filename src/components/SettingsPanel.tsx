@@ -166,6 +166,38 @@ const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChan
               </div>
             )}
 
+            {/* 單Y軸格式設定 */}
+            {(!Array.isArray(chartOptions.yAxis) || chartOptions.yAxis.length === 1) && (
+              <div className="space-y-2">
+                <Label htmlFor="y-axis-format">Y軸格式</Label>
+                <Select
+                  value={
+                    Array.isArray(chartOptions.yAxis)
+                      ? chartOptions.yAxis[0]?.labels?.format || '{value}'
+                      : chartOptions.yAxis?.labels?.format || '{value}'
+                  }
+                  onValueChange={(value) => {
+                    if (Array.isArray(chartOptions.yAxis)) {
+                      updateChartOptions('yAxis.0.labels.format', value);
+                    } else {
+                      updateChartOptions('yAxis.labels.format', value);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="{value}">一般格式</SelectItem>
+                    <SelectItem value="{value:,.0f}">整數格式</SelectItem>
+                    <SelectItem value="{value:,.1f}">小數格式</SelectItem>
+                    <SelectItem value="{value:,.2f}">兩位小數</SelectItem>
+                    <SelectItem value="{value:,.1f}%">百分比</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* 雙Y軸格式設定（僅在雙Y軸時顯示） */}
             {Array.isArray(chartOptions.yAxis) && chartOptions.yAxis.length > 1 && (
               <div className="space-y-3 pt-3 border-t border-gray-200">
