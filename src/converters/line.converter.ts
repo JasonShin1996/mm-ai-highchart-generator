@@ -13,11 +13,13 @@ export class LineConverter extends BaseConverter {
     this.validateData(databaseData);
 
     const chartType = options?.chartType || 'line';
+    const yAxisAssignment = this.calculateYAxisAssignment(databaseData);
 
-    return databaseData.map(item => ({
+    return databaseData.map((item, index) => ({
       name: item.name_tc || item.id,
       type: this.getChartType(chartType),
-      data: this.convertDataPoints(item.data || [])
+      data: this.convertDataPoints(item.data || []),
+      yAxis: yAxisAssignment[index] || 0
     }));
   }
 

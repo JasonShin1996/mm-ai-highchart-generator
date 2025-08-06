@@ -100,6 +100,7 @@ class DatabaseItem(BaseModel):
     max_date: str
     frequency: str
     units: str
+    currency: str
     score: float
 
 class DatabaseSearchResponse(BaseModel):
@@ -341,6 +342,7 @@ async def search_database(request: DatabaseSearchRequest):
                             max_date=doc.get('max_date', ''),
                             frequency=doc.get('frequency', ''),
                             units=doc.get('units', ''),
+                            currency=doc.get('currency', ''),
                             score=float(doc.get('score', 0))
                         ))
                 

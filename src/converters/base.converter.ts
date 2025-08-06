@@ -62,4 +62,59 @@ export abstract class BaseConverter implements DataConverter {
     const timestamp = new Date(date).getTime();
     return isNaN(timestamp) ? null : timestamp;
   }
+
+  /**
+   * 計算Y軸分配（多軸支持）
+   */
+  protected calculateYAxisAssignment(databaseData: any[]): number[] {
+    if (databaseData.length <= 1) {
+      return [0]; // 單一數據使用第一個Y軸
+    }
+
+    // 生成單位標題的輔助函數
+    const generateUnitTitle = (item: any) => {
+      if (!item) return '';
+      
+      const { units, currency } = item;
+      
+      // 單位映射表
+      const unitMapping: { [key: string]: string } = {
+        '': 'Number', 'k': 'Thousands', '10k': '10 Thousands', 'm': 'Millions',
+        '10m': '10 Millions', '100m': '100 Millions', 'b': 'Billions', 't': 'Trillions',
+        'pct': 'Percent', 'pctp': 'Percentage Point', 'idx': 'Index', 'bp': 'Basis Point'
+      };
+
+      const currencyMapping: { [key: string]: string } = {
+        'usd': 'USD', 'cny': 'CNY', 'eur': 'EUR', 'jpy': 'JPY', 'gbp': 'GBP',
+        'aud': 'AUD', 'cad': 'CAD', 'hkd': 'HKD', 'twd': 'TWD', 'krw': 'KRW',
+        'inr': 'INR', 'sgd': 'SGD', 'myr': 'MYR', 'thb': 'THB', 'rub': 'RUB',
+        'brl': 'BRL', 'zar': 'ZAR', 'sar': 'SAR', 'vnd': 'VND'
+      };
+      
+      const fullUnit = unitMapping[units] || units;
+      
+      if (currency && currency !== 'N/A' && currency.trim() !== '') {
+        const fullCurrency = currencyMapping[currency.toLowerCase()] || currency.toUpperCase();
+        return `${fullUnit}, ${fullCurrency}`;
+      } else {
+        return fullUnit || '';
+      }
+    };
+
+    // 根據單位分組
+    const unitGroups = new Map();
+    const assignment: number[] = [];
+    
+    databaseData.forEach((item, index) => {
+      const unitKey = generateUnitTitle(item);
+      
+      if (!unitGroups.has(unitKey)) {
+        unitGroups.set(unitKey, unitGroups.size);
+      }
+      
+      assignment[index] = unitGroups.get(unitKey);
+    });
+
+    return assignment;
+  }
 } 
