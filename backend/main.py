@@ -5,13 +5,14 @@ import httpx
 import os
 from dotenv import load_dotenv
 import json
+import asyncio
 
 # 載入環境變數
 load_dotenv()
 
 # 創建全局 HTTP 客戶端，避免連接池洩漏
 http_client = httpx.AsyncClient(
-    timeout=httpx.Timeout(10.0),  # 10秒超時
+    timeout=httpx.Timeout(30.0),  # 30秒超時，適應大數據量載入
     limits=httpx.Limits(max_connections=10, max_keepalive_connections=5)
 )
 
@@ -100,6 +101,7 @@ class DatabaseItem(BaseModel):
     max_date: str
     frequency: str
     units: str
+    currency: str
     score: float
 
 class DatabaseSearchResponse(BaseModel):
@@ -131,7 +133,7 @@ async def analyze_data(request: DataAnalysisRequest):
         raise HTTPException(status_code=500, detail="Gemini API key is not configured")
     
     # 構建數據分析 prompt
-    headers_str = ", ".join(request.headers)
+    headers_str = ", ".join(str(header) for header in request.headers)
     data_sample_str = json.dumps(request.data_sample, ensure_ascii=False, indent=2)
     
     analysis_prompt = f"""
@@ -341,6 +343,7 @@ async def search_database(request: DatabaseSearchRequest):
                             max_date=doc.get('max_date', ''),
                             frequency=doc.get('frequency', ''),
                             units=doc.get('units', ''),
+                            currency=doc.get('currency', ''),
                             score=float(doc.get('score', 0))
                         ))
                 
@@ -382,13 +385,19 @@ async def load_database_data(request: DatabaseLoadRequest):
         
         try:
             # 使用全局 HTTP 客戶端，帶重試機制
-            for attempt in range(2):  # 最多重試1次
+            for attempt in range(3):  # 最多重試2次（總共3次嘗試）
                 try:
+                    if attempt > 0:
+                        # 重試前等待，避免立即重試
+                        await asyncio.sleep(1.0 * attempt)  # 1秒、2秒延遲
+                    
                     response = await http_client.get(full_url, headers=headers, params=params)
                     
                     if not response.is_success:
                         print(f"Failed to load data for stat_id {stat_id}: {response.status_code}")
-                        break
+                        if attempt == 2:  # 最後一次嘗試
+                            break
+                        continue  # 重試
                     
                     data = response.json()
                     
@@ -412,10 +421,11 @@ async def load_database_data(request: DatabaseLoadRequest):
                     break  # 成功後跳出重試循環
                     
                 except httpx.TimeoutException:
-                    if attempt == 1:  # 最後一次重試
-                        print(f"Timeout loading data for stat_id {stat_id} after retry")
+                    if attempt == 2:  # 最後一次重試
+                        print(f"Timeout loading data for stat_id {stat_id} after {attempt + 1} attempts")
                         break
-                    continue  # 重試一次
+                    print(f"Timeout on attempt {attempt + 1} for stat_id {stat_id}, retrying...")
+                    continue  # 重試
                 
         except httpx.TimeoutException:
             print(f"Timeout loading data for stat_id {stat_id}")

@@ -134,55 +134,79 @@ const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChan
               />
             </div>
 
-            {/* 左側Y軸標題 */}
-            <div className="space-y-2">
-              <Label htmlFor="y-axis-title">左側Y軸標題</Label>
-              <Input
-                id="y-axis-title"
-                value={
-                  Array.isArray(chartOptions.yAxis) 
-                    ? chartOptions.yAxis[0]?.title?.text || ''
-                    : chartOptions.yAxis?.title?.text || ''
-                }
-                onChange={(e) => {
-                  if (Array.isArray(chartOptions.yAxis)) {
-                    updateChartOptions('yAxis.0.title.text', e.target.value);
-                  } else {
-                    updateChartOptions('yAxis.title.text', e.target.value);
-                  }
-                }}
-              />
-            </div>
-
-            {/* 右側Y軸標題（僅在雙Y軸時顯示） */}
-            {Array.isArray(chartOptions.yAxis) && chartOptions.yAxis.length > 1 && (
+            {/* 動態Y軸標題設定 */}
+            {Array.isArray(chartOptions.yAxis) ? (
+              // 多Y軸模式 - 動態渲染每個軸
+              chartOptions.yAxis.map((axis, index) => (
+                <div key={index} className="space-y-2">
+                  <Label htmlFor={`y-axis-title-${index}`}>
+                    {axis.opposite ? '右側' : '左側'}Y軸標題
+                    {/* 顯示軸序號（如果同側有多個軸） */}
+                    {chartOptions.yAxis.filter(a => a.opposite === axis.opposite).length > 1 && 
+                      ` ${chartOptions.yAxis.filter((a, i) => a.opposite === axis.opposite && i <= index).length}`
+                    }
+                  </Label>
+                  <Input
+                    id={`y-axis-title-${index}`}
+                    value={axis?.title?.text || ''}
+                    onChange={(e) => updateChartOptions(`yAxis.${index}.title.text`, e.target.value)}
+                  />
+                </div>
+              ))
+            ) : (
+              // 單Y軸模式 - 保持原有邏輯
               <div className="space-y-2">
-                <Label htmlFor="y-axis-title-2">右側Y軸標題</Label>
+                <Label htmlFor="y-axis-title">Y軸標題</Label>
                 <Input
-                  id="y-axis-title-2"
-                  value={chartOptions.yAxis[1]?.title?.text || ''}
-                  onChange={(e) => updateChartOptions('yAxis.1.title.text', e.target.value)}
+                  id="y-axis-title"
+                  value={chartOptions.yAxis?.title?.text || ''}
+                  onChange={(e) => updateChartOptions('yAxis.title.text', e.target.value)}
                 />
               </div>
             )}
 
-            {/* 單Y軸格式設定 */}
-            {(!Array.isArray(chartOptions.yAxis) || chartOptions.yAxis.length === 1) && (
+            {/* 動態Y軸格式設定 */}
+            {Array.isArray(chartOptions.yAxis) ? (
+              <div className="space-y-3 pt-3 border-t border-gray-200">
+                {chartOptions.yAxis.length > 1 && (
+                  <div className="text-sm font-medium text-blue-600 mb-2">Y軸設定</div>
+                )}
+                
+                {/* 動態渲染每個軸的格式設定 */}
+                {chartOptions.yAxis.map((axis, index) => (
+                  <div key={index} className="space-y-2">
+                    <Label htmlFor={`y-axis-format-${index}`}>
+                      {axis.opposite ? '右側' : '左側'}Y軸格式
+                      {/* 顯示軸序號（如果同側有多個軸） */}
+                      {chartOptions.yAxis.filter(a => a.opposite === axis.opposite).length > 1 && 
+                        ` ${chartOptions.yAxis.filter((a, i) => a.opposite === axis.opposite && i <= index).length}`
+                      }
+                    </Label>
+                    <Select
+                      value={axis?.labels?.format || '{value}'}
+                      onValueChange={(value) => updateChartOptions(`yAxis.${index}.labels.format`, value)}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="{value}">一般格式</SelectItem>
+                        <SelectItem value="{value:,.0f}">整數格式</SelectItem>
+                        <SelectItem value="{value:,.1f}">小數格式</SelectItem>
+                        <SelectItem value="{value:,.2f}">兩位小數</SelectItem>
+                        <SelectItem value="{value:,.1f}%">百分比</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              // 單Y軸模式 - 保持原有邏輯
               <div className="space-y-2">
                 <Label htmlFor="y-axis-format">Y軸格式</Label>
                 <Select
-                  value={
-                    Array.isArray(chartOptions.yAxis)
-                      ? chartOptions.yAxis[0]?.labels?.format || '{value}'
-                      : chartOptions.yAxis?.labels?.format || '{value}'
-                  }
-                  onValueChange={(value) => {
-                    if (Array.isArray(chartOptions.yAxis)) {
-                      updateChartOptions('yAxis.0.labels.format', value);
-                    } else {
-                      updateChartOptions('yAxis.labels.format', value);
-                    }
-                  }}
+                  value={chartOptions.yAxis?.labels?.format || '{value}'}
+                  onValueChange={(value) => updateChartOptions('yAxis.labels.format', value)}
                 >
                   <SelectTrigger className="h-8 text-sm">
                     <SelectValue />
@@ -195,53 +219,6 @@ const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChan
                     <SelectItem value="{value:,.1f}%">百分比</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-            )}
-
-            {/* 雙Y軸格式設定（僅在雙Y軸時顯示） */}
-            {Array.isArray(chartOptions.yAxis) && chartOptions.yAxis.length > 1 && (
-              <div className="space-y-3 pt-3 border-t border-gray-200">
-                <div className="text-sm font-medium text-blue-600 mb-2">雙Y軸設定</div>
-                
-                {/* 左側Y軸格式 */}
-                <div className="space-y-2">
-                  <Label htmlFor="y-axis-format-0">左側Y軸格式</Label>
-                  <Select
-                    value={chartOptions.yAxis[0]?.labels?.format || '{value}'}
-                    onValueChange={(value) => updateChartOptions('yAxis.0.labels.format', value)}
-                  >
-                    <SelectTrigger className="h-8 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="{value}">一般格式</SelectItem>
-                      <SelectItem value="{value:,.0f}">整數格式</SelectItem>
-                      <SelectItem value="{value:,.1f}">小數格式</SelectItem>
-                      <SelectItem value="{value:,.2f}">兩位小數</SelectItem>
-                      <SelectItem value="{value:,.1f}%">百分比</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* 右側Y軸格式 */}
-                <div className="space-y-2">
-                  <Label htmlFor="y-axis-format-1">右側Y軸格式</Label>
-                  <Select
-                    value={chartOptions.yAxis[1]?.labels?.format || '{value}'}
-                    onValueChange={(value) => updateChartOptions('yAxis.1.labels.format', value)}
-                  >
-                    <SelectTrigger className="h-8 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="{value}">一般格式</SelectItem>
-                      <SelectItem value="{value:,.0f}">整數格式</SelectItem>
-                      <SelectItem value="{value:,.1f}">小數格式</SelectItem>
-                      <SelectItem value="{value:,.2f}">兩位小數</SelectItem>
-                      <SelectItem value="{value:,.1f}%">百分比</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
             )}
 
@@ -285,26 +262,18 @@ const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChan
                       newOptions.xAxis.labels.style.fontSize = '16px';
                     }
                     
-                    // 處理可能的數組情況 - yAxis
+                    // 處理可能的數組情況 - yAxis（動態支援所有軸）
                     if (Array.isArray(newOptions.yAxis)) {
-                      // 左側Y軸 (index 0)
-                      if (!newOptions.yAxis[0]) newOptions.yAxis[0] = {};
-                      if (!newOptions.yAxis[0].labels) newOptions.yAxis[0].labels = {};
-                      if (!newOptions.yAxis[0].labels.style) newOptions.yAxis[0].labels.style = {};
-                      newOptions.yAxis[0].labels.style.fontSize = '16px';
-                      if (!newOptions.yAxis[0].title) newOptions.yAxis[0].title = {};
-                      if (!newOptions.yAxis[0].title.style) newOptions.yAxis[0].title.style = {};
-                      newOptions.yAxis[0].title.style.fontSize = '17px';
-                      
-                      // 右側Y軸 (index 1) - 新增
-                      if (newOptions.yAxis[1]) {
-                        if (!newOptions.yAxis[1].labels) newOptions.yAxis[1].labels = {};
-                        if (!newOptions.yAxis[1].labels.style) newOptions.yAxis[1].labels.style = {};
-                        newOptions.yAxis[1].labels.style.fontSize = '16px';
-                        if (!newOptions.yAxis[1].title) newOptions.yAxis[1].title = {};
-                        if (!newOptions.yAxis[1].title.style) newOptions.yAxis[1].title.style = {};
-                        newOptions.yAxis[1].title.style.fontSize = '17px';
-                      }
+                      // 動態處理所有Y軸
+                      newOptions.yAxis.forEach((axis, index) => {
+                        if (!newOptions.yAxis[index]) newOptions.yAxis[index] = {};
+                        if (!newOptions.yAxis[index].labels) newOptions.yAxis[index].labels = {};
+                        if (!newOptions.yAxis[index].labels.style) newOptions.yAxis[index].labels.style = {};
+                        newOptions.yAxis[index].labels.style.fontSize = '16px';
+                        if (!newOptions.yAxis[index].title) newOptions.yAxis[index].title = {};
+                        if (!newOptions.yAxis[index].title.style) newOptions.yAxis[index].title.style = {};
+                        newOptions.yAxis[index].title.style.fontSize = '17px';
+                      });
                     } else {
                       if (!newOptions.yAxis) newOptions.yAxis = {};
                       if (!newOptions.yAxis.labels) newOptions.yAxis.labels = {};
@@ -341,26 +310,18 @@ const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChan
                       newOptions.xAxis.labels.style.fontSize = '11px';
                     }
                     
-                    // 處理可能的數組情況 - yAxis
+                    // 處理可能的數組情況 - yAxis（動態支援所有軸）
                     if (Array.isArray(newOptions.yAxis)) {
-                      // 左側Y軸 (index 0)
-                      if (!newOptions.yAxis[0]) newOptions.yAxis[0] = {};
-                      if (!newOptions.yAxis[0].labels) newOptions.yAxis[0].labels = {};
-                      if (!newOptions.yAxis[0].labels.style) newOptions.yAxis[0].labels.style = {};
-                      newOptions.yAxis[0].labels.style.fontSize = '11px';
-                      if (!newOptions.yAxis[0].title) newOptions.yAxis[0].title = {};
-                      if (!newOptions.yAxis[0].title.style) newOptions.yAxis[0].title.style = {};
-                      newOptions.yAxis[0].title.style.fontSize = '11px';
-                      
-                      // 右側Y軸 (index 1) - 新增
-                      if (newOptions.yAxis[1]) {
-                        if (!newOptions.yAxis[1].labels) newOptions.yAxis[1].labels = {};
-                        if (!newOptions.yAxis[1].labels.style) newOptions.yAxis[1].labels.style = {};
-                        newOptions.yAxis[1].labels.style.fontSize = '11px';
-                        if (!newOptions.yAxis[1].title) newOptions.yAxis[1].title = {};
-                        if (!newOptions.yAxis[1].title.style) newOptions.yAxis[1].title.style = {};
-                        newOptions.yAxis[1].title.style.fontSize = '11px';
-                      }
+                      // 動態處理所有Y軸
+                      newOptions.yAxis.forEach((axis, index) => {
+                        if (!newOptions.yAxis[index]) newOptions.yAxis[index] = {};
+                        if (!newOptions.yAxis[index].labels) newOptions.yAxis[index].labels = {};
+                        if (!newOptions.yAxis[index].labels.style) newOptions.yAxis[index].labels.style = {};
+                        newOptions.yAxis[index].labels.style.fontSize = '11px';
+                        if (!newOptions.yAxis[index].title) newOptions.yAxis[index].title = {};
+                        if (!newOptions.yAxis[index].title.style) newOptions.yAxis[index].title.style = {};
+                        newOptions.yAxis[index].title.style.fontSize = '11px';
+                      });
                     } else {
                       if (!newOptions.yAxis) newOptions.yAxis = {};
                       if (!newOptions.yAxis.labels) newOptions.yAxis.labels = {};
@@ -493,19 +454,12 @@ const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChan
                             <SelectItem value="pie">圓餅圖</SelectItem>
                             <SelectItem value="scatter">散佈圖</SelectItem>
                             <SelectItem value="bubble">氣泡圖</SelectItem>
-                            <SelectItem value="gauge">儀表圖</SelectItem>
-                            <SelectItem value="boxplot">箱線圖</SelectItem>
-                            <SelectItem value="arearange">範圍面積圖</SelectItem>
-                            <SelectItem value="columnrange">範圍柱狀圖</SelectItem>
-                            <SelectItem value="funnel">漏斗圖</SelectItem>
-                            <SelectItem value="pyramid">金字塔圖</SelectItem>
-                            <SelectItem value="polar">極地圖</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
 
-                    {/* Y軸選擇（僅在雙Y軸時顯示） */}
+                    {/* Y軸選擇（多Y軸時顯示） */}
                     {Array.isArray(chartOptions.yAxis) && chartOptions.yAxis.length > 1 && (
                       <div className="mt-2">
                         <Label htmlFor={`series-yaxis-${index}`} className="text-sm mb-1 block">使用Y軸</Label>
@@ -517,8 +471,16 @@ const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChan
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="0">左側Y軸 ({chartOptions.yAxis[0]?.title?.text || '左側Y軸'})</SelectItem>
-                            <SelectItem value="1">右側Y軸 ({chartOptions.yAxis[1]?.title?.text || '右側Y軸'})</SelectItem>
+                            {/* 動態生成所有Y軸選項 */}
+                            {chartOptions.yAxis.map((axis, axisIndex) => (
+                              <SelectItem key={axisIndex} value={axisIndex.toString()}>
+                                {axis.opposite ? '右側' : '左側'}Y軸 ({axis?.title?.text || `軸${axisIndex}`})
+                                {/* 顯示軸序號（如果同側有多個軸） */}
+                                {chartOptions.yAxis.filter(a => a.opposite === axis.opposite).length > 1 && 
+                                  ` ${chartOptions.yAxis.filter((a, i) => a.opposite === axis.opposite && i <= axisIndex).length}`
+                                }
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>

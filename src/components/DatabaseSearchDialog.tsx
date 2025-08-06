@@ -90,6 +90,7 @@ interface DatabaseItem {
   max_date: string;
   frequency: string;
   units: string;
+  currency: string;
   score: number;
 }
 
@@ -192,6 +193,7 @@ const DatabaseSearchDialog: React.FC<DatabaseSearchDialogProps> = ({
           country: selectedItem?.country || '',
           frequency: selectedItem?.frequency || '',
           units: selectedItem?.units || '',
+          currency: selectedItem?.currency || '',
           min_date: selectedItem?.min_date || '',
           max_date: selectedItem?.max_date || ''
         };

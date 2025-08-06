@@ -37,6 +37,7 @@ interface DatabaseItem {
   max_date: string;
   frequency: string;
   units: string;
+  currency: string;
   score: number;
 }
 
