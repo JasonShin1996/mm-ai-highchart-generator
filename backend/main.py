@@ -133,7 +133,7 @@ async def analyze_data(request: DataAnalysisRequest):
         raise HTTPException(status_code=500, detail="Gemini API key is not configured")
     
     # 構建數據分析 prompt
-    headers_str = ", ".join(request.headers)
+    headers_str = ", ".join(str(header) for header in request.headers)
     data_sample_str = json.dumps(request.data_sample, ensure_ascii=False, indent=2)
     
     analysis_prompt = f"""
