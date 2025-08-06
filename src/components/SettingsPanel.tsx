@@ -493,13 +493,6 @@ const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChan
                             <SelectItem value="pie">圓餅圖</SelectItem>
                             <SelectItem value="scatter">散佈圖</SelectItem>
                             <SelectItem value="bubble">氣泡圖</SelectItem>
-                            <SelectItem value="gauge">儀表圖</SelectItem>
-                            <SelectItem value="boxplot">箱線圖</SelectItem>
-                            <SelectItem value="arearange">範圍面積圖</SelectItem>
-                            <SelectItem value="columnrange">範圍柱狀圖</SelectItem>
-                            <SelectItem value="funnel">漏斗圖</SelectItem>
-                            <SelectItem value="pyramid">金字塔圖</SelectItem>
-                            <SelectItem value="polar">極地圖</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
