@@ -193,13 +193,7 @@ const generateBaseChartConfig = (seriesData: any[], chartType: string, prompt: s
           text: unitTitle
         },
         opposite: !isLeftSide, // false = 左側, true = 右側  
-        offset: offsetMultiplier * 60, // 每個軸間隔60px
-        // 為不同軸分配不同顏色（可選）
-        labels: {
-          style: {
-            color: groupIndex === 0 ? '#3BAFDA' : (groupIndex === 1 ? '#E9573F' : '#F6BB42')
-          }
-        }
+        offset: offsetMultiplier * 60 // 每個軸間隔60px
       });
     });
 

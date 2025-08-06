@@ -17,6 +17,112 @@ import { generateChartSuggestion } from '@/services/gemini';
 import { useChartGeneration } from '@/hooks/useChartGeneration';
 import { getChartTypeName, analyzeDataAndRecommendCharts } from '@/utils/chartAnalysis';
 
+// Y軸管理功能 - 從 useDatabaseChart.ts 中提取
+const unitMapping: Record<string, string> = {
+  'm': 'Millions',
+  'k': 'Thousands',
+  'b': 'Billions',
+  't': 'Trillions',
+  'pct': 'Percent',
+  'bps': 'Basis Points',
+  'ratio': 'Ratio',
+  'index': 'Index',
+  'count': 'Count',
+  'rate': 'Rate',
+  'yoy': 'YoY%',
+  'mom': 'MoM%',
+  'qoq': 'QoQ%'
+};
+
+const currencyMapping: Record<string, string> = {
+  'usd': 'USD',
+  'eur': 'EUR',
+  'jpy': 'JPY',
+  'gbp': 'GBP',
+  'cad': 'CAD',
+  'aud': 'AUD',
+  'chf': 'CHF',
+  'cny': 'CNY',
+  'hkd': 'HKD',
+  'sgd': 'SGD',
+  'krw': 'KRW',
+  'twd': 'TWD',
+  'thb': 'THB',
+  'inr': 'INR'
+};
+
+// 生成Y軸標題
+const generateYAxisTitle = (dataItem: any) => {
+  if (!dataItem) return '';
+  const { units, currency } = dataItem;
+  const fullUnit = unitMapping[units] || units || '';
+  
+  if (currency && currency !== 'N/A' && currency.trim() !== '') {
+    const fullCurrency = currencyMapping[currency.toLowerCase()] || currency.toUpperCase();
+    return `${fullUnit}, ${fullCurrency}`;
+  } else {
+    return fullUnit || '';
+  }
+};
+
+// 生成多個Y軸配置
+const generateMultipleYAxes = (allData: any[], existingYAxes: any = null) => {
+  console.log('🎯 開始重新分配Y軸:', allData);
+  
+  // 收集所有不同的單位標題
+  const unitTitleGroups = new Map();
+  
+  // 處理現有的Y軸（本地數據）
+  if (existingYAxes) {
+    if (Array.isArray(existingYAxes)) {
+      existingYAxes.forEach((axis, index) => {
+        if (axis.title?.text && axis.title.text.trim()) {
+          const key = axis.title.text;
+          if (!unitTitleGroups.has(key)) {
+            unitTitleGroups.set(key, { indices: [], isExisting: true });
+          }
+        }
+      });
+    } else if (existingYAxes.title?.text && existingYAxes.title?.text.trim()) {
+      const key = existingYAxes.title.text;
+      unitTitleGroups.set(key, { indices: [], isExisting: true });
+    }
+  }
+  
+  // 處理新的資料庫數據
+  allData.forEach((dataItem, dataIndex) => {
+    const unitTitle = generateYAxisTitle(dataItem);
+    console.log(`📊 數據 ${dataIndex}: 單位標題="${unitTitle}"`);
+    
+    if (unitTitle) {
+      if (!unitTitleGroups.has(unitTitle)) {
+        unitTitleGroups.set(unitTitle, { indices: [], isExisting: false });
+      }
+      unitTitleGroups.get(unitTitle).indices.push(dataIndex);
+    }
+  });
+  
+  const groupsArray = Array.from(unitTitleGroups.entries());
+  console.log('🔧 所有單位分組:', groupsArray);
+  
+  // 生成Y軸配置
+  const yAxisArray: any[] = [];
+  groupsArray.forEach(([unitTitle, groupInfo], groupIndex) => {
+    const isLeftSide = groupIndex % 2 === 0; // 偶數索引在左側
+    const offsetMultiplier = Math.floor(groupIndex / 2); // 每兩個軸計算一次偏移
+    
+    yAxisArray.push({
+      title: { text: unitTitle },
+      opposite: !isLeftSide, // true = 右側，false = 左側
+      offset: offsetMultiplier * 60 // 每個偏移層級 60px
+    });
+    
+    console.log(`📍 Y軸 ${groupIndex}: "${unitTitle}" - ${isLeftSide ? '左' : '右'}側, offset: ${offsetMultiplier * 60}`);
+  });
+  
+  return yAxisArray;
+};
+
 const DataFusion = () => {
   const navigate = useNavigate();
   const [fileData, setFileData] = useState(null);
@@ -189,7 +295,7 @@ const DataFusion = () => {
     });
   };
 
-  // 處理融合數據載入
+  // 處理融合數據載入 - 智能Y軸重分配
   const handleFusedDataLoaded = useCallback((databaseData) => {
     if (!chartOptions) {
       toast({
@@ -213,29 +319,106 @@ const DataFusion = () => {
       return;
     }
 
-    // 轉換數據庫數據為 Highcharts 格式
-    const newSeries = databaseData.map((item, index) => ({
-      name: item.name_tc || item.name_en || `融合數據 ${index + 1}`,
-      type: 'line', // 固定為線圖
-      data: item.data.map(point => [
-        new Date(point.date).getTime(), // 轉換為時間戳
-        parseFloat(point.value)
-      ]).filter(point => !isNaN(point[1])) // 過濾無效數據
-    }));
+    console.log('🔄 開始處理數據融合，載入資料庫數據:', databaseData);
+    console.log('📊 當前圖表選項:', chartOptions);
 
-    // 更新圖表選項，添加新的數據系列
+    // 1. 分析新的資料庫數據，建立單位標題映射
+    const databaseUnitTitles = databaseData.map(item => generateYAxisTitle(item));
+    console.log('📈 資料庫數據單位標題:', databaseUnitTitles);
+
+    // 2. 分析現有圖表的Y軸標題（本地數據）
+    let existingYAxisTitles: string[] = [];
+    if (chartOptions.yAxis) {
+      if (Array.isArray(chartOptions.yAxis)) {
+        existingYAxisTitles = chartOptions.yAxis.map(axis => axis.title?.text || '').filter(title => title.trim());
+      } else {
+        const title = chartOptions.yAxis.title?.text || '';
+        if (title.trim()) {
+          existingYAxisTitles = [title];
+        }
+      }
+    }
+    console.log('📉 現有Y軸標題:', existingYAxisTitles);
+
+    // 3. 檢查是否有新的單位標題（需要重新分配Y軸）
+    const newUnitTitles = databaseUnitTitles.filter(title => 
+      title && !existingYAxisTitles.includes(title)
+    );
+    console.log('🆕 新的單位標題:', newUnitTitles);
+
+    // 4. 生成新的Y軸配置
+    const newYAxisConfig = generateMultipleYAxes(databaseData, chartOptions.yAxis);
+    console.log('🎯 重新生成的Y軸配置:', newYAxisConfig);
+
+    // 5. 為資料庫數據分配Y軸索引
+    const yAxisIndexMap = new Map();
+    newYAxisConfig.forEach((axis, index) => {
+      yAxisIndexMap.set(axis.title.text, index);
+    });
+
+    // 6. 轉換資料庫數據為 Highcharts 格式，並分配Y軸
+    const newSeries = databaseData.map((item, index) => {
+      const unitTitle = generateYAxisTitle(item);
+      const yAxisIndex = yAxisIndexMap.get(unitTitle) || 0;
+      
+      console.log(`📊 數據系列 "${item.name_tc}": 單位="${unitTitle}" → Y軸索引=${yAxisIndex}`);
+      
+      return {
+        name: item.name_tc || item.name_en || `融合數據 ${index + 1}`,
+        type: 'line', // 固定為線圖
+        yAxis: yAxisIndex, // 分配到對應的Y軸
+        data: item.data.map(point => [
+          new Date(point.date).getTime(), // 轉換為時間戳
+          parseFloat(point.value)
+        ]).filter(point => !isNaN(point[1])) // 過濾無效數據
+      };
+    });
+
+    // 7. 重新分配現有系列的Y軸索引（如果有Y軸重新排列）
+    const updatedExistingSeries = chartOptions.series.map((series, index) => {
+      // 尋找現有系列應該對應的Y軸索引
+      let targetYAxisIndex = 0;
+      
+      // 如果系列已經有指定的yAxis，嘗試找到對應的新索引
+      if (series.yAxis !== undefined) {
+        const oldAxisIndex = series.yAxis;
+        const oldAxisTitle = Array.isArray(chartOptions.yAxis) 
+          ? chartOptions.yAxis[oldAxisIndex]?.title?.text 
+          : chartOptions.yAxis?.title?.text;
+        
+        if (oldAxisTitle) {
+          targetYAxisIndex = yAxisIndexMap.get(oldAxisTitle) || 0;
+        }
+      } else {
+        // 沒有指定yAxis的系列，查看是否能從名稱推斷
+        // 這裡可能需要更複雜的邏輯，暫時使用索引0
+        targetYAxisIndex = 0;
+      }
+
+      console.log(`📈 更新現有系列 "${series.name}": Y軸索引 ${series.yAxis || 0} → ${targetYAxisIndex}`);
+      
+      return {
+        ...series,
+        yAxis: targetYAxisIndex
+      };
+    });
+
+    // 8. 更新圖表選項
     const updatedChartOptions = {
       ...chartOptions,
-      series: [...chartOptions.series, ...newSeries]
+      yAxis: newYAxisConfig,
+      series: [...updatedExistingSeries, ...newSeries]
     };
+
+    console.log('✅ 更新後的圖表選項:', updatedChartOptions);
 
     setChartOptions(updatedChartOptions);
     setGeneratedCode(JSON.stringify(updatedChartOptions, null, 2));
     setFusedData([...fusedData, ...newSeries]);
 
     toast({
-      title: "數據融合成功",
-      description: `已添加 ${newSeries.length} 個數據系列到圖表中`,
+      title: "智能數據融合完成",
+      description: `已添加 ${newSeries.length} 個數據系列，${newUnitTitles.length > 0 ? `創建 ${newUnitTitles.length} 個新Y軸` : '使用現有Y軸'}`,
     });
   }, [chartOptions, fusedData, toast]);
 
