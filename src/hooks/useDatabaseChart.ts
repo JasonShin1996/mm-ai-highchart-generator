@@ -67,17 +67,17 @@ const generateBaseChartConfig = (seriesData: any[], chartType: string, prompt: s
 
   // 單位映射表
   const unitMapping: { [key: string]: string } = {
-    '': 'Number',
-    'k': 'Thousands',
-    '10k': '10 Thousands',
+    '': 'Number', 
+    'k': 'Thousands', 
+    '10k': '10 Thousands', 
     'm': 'Millions',
     '10m': '10 Millions', 
-    '100m': '100 Millions',
-    'b': 'Billions',
+    '100m': '100 Millions', 
+    'b': 'Billions', 
     't': 'Trillions',
-    'pct': 'Percent',
-    'pctp': 'Percentage Point',
-    'idx': 'Index',
+    'pct': 'Percent', 
+    'pctp': 'Percentage Point', 
+    'idx': 'Index', 
     'bp': 'Basis Point'
   };
 

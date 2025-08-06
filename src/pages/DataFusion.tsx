@@ -19,36 +19,40 @@ import { getChartTypeName, analyzeDataAndRecommendCharts } from '@/utils/chartAn
 
 // Y軸管理功能 - 從 useDatabaseChart.ts 中提取
 const unitMapping: Record<string, string> = {
+  '': 'Number',
+  'k': 'Thousands', 
+  '10k': '10 Thousands', 
   'm': 'Millions',
-  'k': 'Thousands',
-  'b': 'Billions',
+  '10m': '10 Millions', 
+  '100m': '100 Millions', 
+  'b': 'Billions', 
   't': 'Trillions',
-  'pct': 'Percent',
-  'bps': 'Basis Points',
-  'ratio': 'Ratio',
-  'index': 'Index',
-  'count': 'Count',
-  'rate': 'Rate',
-  'yoy': 'YoY%',
-  'mom': 'MoM%',
-  'qoq': 'QoQ%'
+  'pct': 'Percent', 
+  'pctp': 'Percentage Point', 
+  'idx': 'Index', 
+  'bp': 'Basis Point'
 };
 
 const currencyMapping: Record<string, string> = {
-  'usd': 'USD',
-  'eur': 'EUR',
-  'jpy': 'JPY',
+  'usd': 'USD', 
+  'cny': 'CNY', 
+  'eur': 'EUR', 
+  'jpy': 'JPY', 
   'gbp': 'GBP',
-  'cad': 'CAD',
-  'aud': 'AUD',
-  'chf': 'CHF',
-  'cny': 'CNY',
-  'hkd': 'HKD',
-  'sgd': 'SGD',
+  'aud': 'AUD', 
+  'cad': 'CAD', 
+  'hkd': 'HKD', 
+  'twd': 'TWD', 
   'krw': 'KRW',
-  'twd': 'TWD',
-  'thb': 'THB',
-  'inr': 'INR'
+  'inr': 'INR', 
+  'sgd': 'SGD', 
+  'myr': 'MYR', 
+  'thb': 'THB', 
+  'rub': 'RUB',
+  'brl': 'BRL', 
+  'zar': 'ZAR', 
+  'sar': 'SAR', 
+  'vnd': 'VND'
 };
 
 // 生成Y軸標題
