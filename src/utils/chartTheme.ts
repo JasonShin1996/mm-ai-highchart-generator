@@ -1,5 +1,41 @@
 export const generateMMTheme = (size = 'standard', chartOptions = null) => {
-  const isLarge = size === 'large';
+  // 根據尺寸類型設定對應的配置
+  const getSizeConfig = () => {
+    switch (size) {
+      case 'large':
+        return {
+          width: 975,
+          height: 650,
+          titleFontSize: '26px',
+          subtitleFontSize: '20px',
+          axisFontSize: '16px',
+          yAxisTitleFontSize: '17px',
+          legendFontSize: '24px'
+        };
+      case 'square':
+        return {
+          width: 800,
+          height: 800,
+          titleFontSize: '26px',
+          subtitleFontSize: '20px',
+          axisFontSize: '16px',
+          yAxisTitleFontSize: '17px',
+          legendFontSize: '24px'
+        };
+      default: // 'standard'
+        return {
+          width: 960,
+          height: 540,
+          titleFontSize: '16px',
+          subtitleFontSize: '12px',
+          axisFontSize: '11px',
+          yAxisTitleFontSize: '11px',
+          legendFontSize: '20px'
+        };
+    }
+  };
+
+  const sizeConfig = getSizeConfig();
   
   // 檢查圖表類型，決定是否需要 lineWidth
   const needsLineWidth = () => {
@@ -56,8 +92,8 @@ export const generateMMTheme = (size = 'standard', chartOptions = null) => {
     ],
     'chart': {
       'backgroundColor': '#ffffff',
-      'width': isLarge ? 975 : 960,
-      'height': isLarge ? 650 : 540,
+      'width': sizeConfig.width,
+      'height': sizeConfig.height,
       'style': {
         'fontFamily': '-apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif'
       }
@@ -65,7 +101,7 @@ export const generateMMTheme = (size = 'standard', chartOptions = null) => {
     'title': {
       'style': {
         'color': '#333333', 
-        'fontSize': isLarge ? '26px' : '16px', 
+        'fontSize': sizeConfig.titleFontSize, 
         'fontWeight': '450'
       }
     },
@@ -73,7 +109,7 @@ export const generateMMTheme = (size = 'standard', chartOptions = null) => {
       'text': 'MacroMicro.me | MacroMicro',
       'style': {
         'color': '#666666', 
-        'fontSize': isLarge ? '20px' : '12px'
+        'fontSize': sizeConfig.subtitleFontSize
       }
     },
     'xAxis': {
@@ -82,7 +118,7 @@ export const generateMMTheme = (size = 'standard', chartOptions = null) => {
       'labels': {
         'style': {
           'color': '#666666', 
-          'fontSize': isLarge ? '16px' : '11px'
+          'fontSize': sizeConfig.axisFontSize
         }
       },
       'tickPixelInterval': 150,
@@ -93,7 +129,7 @@ export const generateMMTheme = (size = 'standard', chartOptions = null) => {
       'labels': {
         'style': {
           'color': '#666666', 
-          'fontSize': isLarge ? '16px' : '11px', 
+          'fontSize': sizeConfig.axisFontSize, 
           'fontWeight': '450'
         }
       },
@@ -101,14 +137,14 @@ export const generateMMTheme = (size = 'standard', chartOptions = null) => {
         'text': chartOptions?.yAxis?.title?.text || '',
         'style': {
           'color': '#666666', 
-          'fontSize': isLarge ? '17px' : '11px'
+          'fontSize': sizeConfig.yAxisTitleFontSize
         }
       }
     },
     'legend': {
       'itemStyle': {
         'color': '#000000', 
-        'fontSize': isLarge ? '24px' : '20px', 
+        'fontSize': sizeConfig.legendFontSize, 
         'fontWeight': '600'
       }
     },

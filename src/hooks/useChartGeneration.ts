@@ -314,7 +314,14 @@ export const useChartGeneration = () => {
       const processedOptions = processLLMResponse(aiChartOptions, fileData.data);
 
       // 動態生成 MM_THEME 配置
-      const chartSize = processedOptions.chart?.width === 975 && processedOptions.chart?.height === 650 ? 'large' : 'standard';
+      const getChartSize = () => {
+        const width = processedOptions.chart?.width;
+        const height = processedOptions.chart?.height;
+        if (width === 975 && height === 650) return 'large';
+        if (width === 800 && height === 800) return 'square';
+        return 'standard';
+      };
+      const chartSize = getChartSize();
       const MM_THEME = generateMMTheme(chartSize, processedOptions);
 
       // 合併 AI 設定與 MM_THEME 樣式

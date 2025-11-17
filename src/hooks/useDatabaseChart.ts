@@ -422,7 +422,7 @@ ${JSON.stringify(configTemplate, null, 2)}
 
 **可以調整的項目：**
 - colors: 圖表系列的顏色陣列
-- chart.width 和 chart.height: 圖表尺寸（如果用戶沒有指定，保持原本設定；如果指定，只能選擇 960x540 或 975x650）
+- chart.width 和 chart.height: 圖表尺寸（如果用戶沒有指定，保持原本設定；如果指定，只能選擇 960x540、975x650 或 800x800）
 - title.text: 標題的文字內容
 - yAxis.title.text: **僅在用戶明確要求修改Y軸標題時才設定**（如果用戶沒有特別提到Y軸標題，請不要設定此字段，系統會自動處理）
 - xAxis.title.text: X軸標題的文字內容（預設不顯示，只有用戶特別指定時才顯示）
