@@ -183,7 +183,7 @@ async def analyze_data(request: DataAnalysisRequest):
     """
     
     # Gemini API 設置
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key={api_key}"
     
     payload = {
         "contents": [{"role": "user", "parts": [{"text": analysis_prompt}]}],
@@ -262,7 +262,7 @@ async def generate_chart(request: PromptRequest):
         raise HTTPException(status_code=500, detail="Gemini API key is not configured")
     
     # Gemini API 設置
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key={api_key}"
     
     payload = {
         "contents": [{"role": "user", "parts": [{"text": request.prompt}]}],
