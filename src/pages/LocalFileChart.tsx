@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, Zap, Settings, Copy, FileSpreadsheet, Edit, ArrowLeft } from 'lucide-react';
+import { Upload, Zap, Settings, Copy, FileSpreadsheet, Edit, ArrowLeft, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -222,6 +222,24 @@ const LocalFileChart = () => {
         variant: "destructive",
       });
     });
+  };
+
+  // 應用編輯後的代碼
+  const applyCodeChanges = () => {
+    try {
+      const parsedOptions = JSON.parse(generatedCode);
+      setChartOptions(parsedOptions);
+      toast({
+        title: "代碼已應用",
+        description: "圖表已更新為新的配置",
+      });
+    } catch (error) {
+      toast({
+        title: "JSON 格式錯誤",
+        description: "請檢查代碼格式是否正確",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -470,14 +488,26 @@ const LocalFileChart = () => {
                   </div>
                 )}
 
-                {/* 代碼顯示 */}
+                {/* 代碼編輯器 */}
                 <div className="space-y-2">
-                  <Label>圖表配置代碼</Label>
-                  <div className="relative">
-                    <pre className="text-sm text-white overflow-x-auto max-h-48 bg-gray-800 p-4 rounded">
-                      <code>{generatedCode}</code>
-                    </pre>
+                  <div className="flex items-center justify-between">
+                    <Label>圖表配置代碼（可編輯）</Label>
+                    <Button
+                      onClick={applyCodeChanges}
+                      size="sm"
+                      variant="outline"
+                      className="h-8"
+                    >
+                      <Check className="h-4 w-4 mr-1" />
+                      應用變更
+                    </Button>
                   </div>
+                  <textarea
+                    value={generatedCode}
+                    onChange={(e) => setGeneratedCode(e.target.value)}
+                    className="w-full h-48 p-4 text-sm font-mono bg-gray-800 text-white rounded border border-gray-700 focus:border-blue-500 focus:outline-none resize-none overflow-auto"
+                    spellCheck={false}
+                  />
                 </div>
               </div>
             </CardContent>

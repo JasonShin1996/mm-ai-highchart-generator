@@ -336,26 +336,26 @@ const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChan
                     if (!newOptions.legend.itemStyle) newOptions.legend.itemStyle = {};
                     newOptions.legend.itemStyle.fontSize = '24px';
                   } else {
-                    // 標準尺寸配置
+                    // 標準尺寸配置 (960x540)
                     if (!newOptions.title) newOptions.title = {};
                     if (!newOptions.title.style) newOptions.title.style = {};
-                    newOptions.title.style.fontSize = '16px';
+                    newOptions.title.style.fontSize = '24px';
                     
                     if (!newOptions.subtitle) newOptions.subtitle = {};
                     if (!newOptions.subtitle.style) newOptions.subtitle.style = {};
-                    newOptions.subtitle.style.fontSize = '12px';
+                    newOptions.subtitle.style.fontSize = '18px';
                     
                     // 處理可能的數組情況 - xAxis
                     if (Array.isArray(newOptions.xAxis)) {
                       if (!newOptions.xAxis[0]) newOptions.xAxis[0] = {};
                       if (!newOptions.xAxis[0].labels) newOptions.xAxis[0].labels = {};
                       if (!newOptions.xAxis[0].labels.style) newOptions.xAxis[0].labels.style = {};
-                      newOptions.xAxis[0].labels.style.fontSize = '11px';
+                      newOptions.xAxis[0].labels.style.fontSize = '14px';
                     } else {
                       if (!newOptions.xAxis) newOptions.xAxis = {};
                       if (!newOptions.xAxis.labels) newOptions.xAxis.labels = {};
                       if (!newOptions.xAxis.labels.style) newOptions.xAxis.labels.style = {};
-                      newOptions.xAxis.labels.style.fontSize = '11px';
+                      newOptions.xAxis.labels.style.fontSize = '14px';
                     }
                     
                     // 處理可能的數組情況 - yAxis（動態支援所有軸）
@@ -365,19 +365,19 @@ const SettingsPanel = ({ chartOptions, onOptionsChange, databaseData, onDateChan
                         if (!newOptions.yAxis[index]) newOptions.yAxis[index] = {};
                         if (!newOptions.yAxis[index].labels) newOptions.yAxis[index].labels = {};
                         if (!newOptions.yAxis[index].labels.style) newOptions.yAxis[index].labels.style = {};
-                        newOptions.yAxis[index].labels.style.fontSize = '11px';
+                        newOptions.yAxis[index].labels.style.fontSize = '14px';
                         if (!newOptions.yAxis[index].title) newOptions.yAxis[index].title = {};
                         if (!newOptions.yAxis[index].title.style) newOptions.yAxis[index].title.style = {};
-                        newOptions.yAxis[index].title.style.fontSize = '11px';
+                        newOptions.yAxis[index].title.style.fontSize = '14px';
                       });
                     } else {
                       if (!newOptions.yAxis) newOptions.yAxis = {};
                       if (!newOptions.yAxis.labels) newOptions.yAxis.labels = {};
                       if (!newOptions.yAxis.labels.style) newOptions.yAxis.labels.style = {};
-                      newOptions.yAxis.labels.style.fontSize = '11px';
+                      newOptions.yAxis.labels.style.fontSize = '14px';
                       if (!newOptions.yAxis.title) newOptions.yAxis.title = {};
                       if (!newOptions.yAxis.title.style) newOptions.yAxis.title.style = {};
-                      newOptions.yAxis.title.style.fontSize = '11px';
+                      newOptions.yAxis.title.style.fontSize = '14px';
                     }
                     
                     if (!newOptions.legend) newOptions.legend = {};

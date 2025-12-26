@@ -26,10 +26,10 @@ export const generateMMTheme = (size = 'standard', chartOptions = null) => {
         return {
           width: 960,
           height: 540,
-          titleFontSize: '16px',
-          subtitleFontSize: '12px',
-          axisFontSize: '11px',
-          yAxisTitleFontSize: '11px',
+          titleFontSize: '24px',
+          subtitleFontSize: '18px',
+          axisFontSize: '14px',
+          yAxisTitleFontSize: '14px',
           legendFontSize: '20px'
         };
     }
