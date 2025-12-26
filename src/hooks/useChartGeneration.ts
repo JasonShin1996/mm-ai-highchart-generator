@@ -216,7 +216,10 @@ const getChartTypeSpecificPrompt = (
 1. 你的回覆 **必須** 只包含一個格式完全正確的 JSON 物件。
 2. **絕對不要** 在 JSON 物件前後包含任何文字、註解、或 markdown 語法。
 3. **不要** 使用 \`data.csv\` 或外部 URL 來載入數據。所有需要的數據都應該直接寫在 \`series\` 設定中。
-4. 根據下方提供的數據範例來決定 x 軸 (categories/datetime) 和 y 軸 (data) 的對應關係。
+4. 根據下方提供的數據範例來決定 x 軸的正確設定：
+   - 如果 x 軸資料是日期/時間且可轉換為時間戳（例如：2024-01-01、2024Q1、Jan 2024），則設定 xAxis 的 type 為 datetime
+   - 如果 x 軸資料是分類資料（例如：產品名稱、地區、類別、無法轉換為時間戳的文字），則設定 xAxis 的 type 為 categories
+   - 注意：只有確定可以轉換為時間戳時才使用 datetime，否則應該使用 categories
 
 **基本要求：**
 1. 使用 ${chartType} 圖表類型
