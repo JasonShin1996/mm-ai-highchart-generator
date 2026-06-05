@@ -15,6 +15,7 @@ import DataPreview from "@/components/DataPreview";
 import ChartGallery from "@/components/ChartGallery";
 import ChartDisplay from "@/components/ChartDisplay";
 import SettingsPanel from "@/components/SettingsPanel";
+import JsonEditorWithAi from "@/components/JsonEditorWithAi";
 import { useToast } from "@/hooks/use-toast";
 import { generateChartSuggestion } from "@/services/gemini";
 import { getBackendUrl } from "@/services/apiClient";
@@ -109,16 +110,6 @@ const TurnBubble = React.memo(function TurnBubble({ turn, idx, onChartChange }: 
     });
   };
 
-  const applyCodeChanges = () => {
-    try {
-      const parsed = JSON.parse(generatedCode);
-      onChartChange(parsed, idx);
-      toast({ title: "代碼已應用", description: "圖表已更新為新的配置" });
-    } catch {
-      toast({ title: "JSON 格式錯誤", description: "請檢查代碼格式是否正確", variant: "destructive" });
-    }
-  };
-
   if (turn.role === "user") {
     return (
       <div className="flex justify-end">
@@ -197,20 +188,14 @@ const TurnBubble = React.memo(function TurnBubble({ turn, idx, onChartChange }: 
             )}
 
             {/* JSON editor */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>圖表配置代碼（可編輯）</Label>
-                <Button onClick={applyCodeChanges} size="sm" variant="outline" className="h-8">
-                  <Check className="h-4 w-4 mr-1" />應用變更
-                </Button>
-              </div>
-              <textarea
-                value={generatedCode}
-                onChange={e => setGeneratedCode(e.target.value)}
-                className="w-full h-48 p-4 text-sm font-mono bg-gray-800 text-white rounded border border-gray-700 focus:border-blue-500 focus:outline-none resize-none overflow-auto"
-                spellCheck={false}
-              />
-            </div>
+            <JsonEditorWithAi
+              value={generatedCode}
+              onChange={setGeneratedCode}
+              onApply={(config) => {
+                onChartChange(config, idx);
+                setGeneratedCode(JSON.stringify(config, null, 2));
+              }}
+            />
           </CardContent>
         </Card>
       )}
