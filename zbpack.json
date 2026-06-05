@@ -1,5 +1,5 @@
 {
   "build_command": "npm install && npm run build",
   "install_command": "npm install",
-  "start_command": "npx serve -s dist -l $PORT"
+  "start_command": "node server.cjs"
 } 
