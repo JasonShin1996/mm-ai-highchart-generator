@@ -1,7 +1,7 @@
 import { generateChartConfig } from '../services/gemini';
-import { generateMMTheme } from '../utils/chartTheme';
 import { getChartTypeTemplates } from '../utils/chartTypeTemplates';
 import { extractJsonObjectString, parseStringFunctions } from '@/domain/jsonParser';
+import { applyMMTheme } from '@/domain/themeMerge';
 
 // 優化數據精度，減少 API 負載
 const optimizeDataPrecision = (data: any[]) => {
@@ -261,72 +261,23 @@ export const useChartGeneration = () => {
       // 處理 LLM 響應，檢查是否需要時間序列數據組裝
       const processedOptions = processLLMResponse(aiChartOptions, fileData.data);
 
-      // 動態生成 MM_THEME 配置
-      const getChartSize = () => {
-        const width = processedOptions.chart?.width;
-        const height = processedOptions.chart?.height;
-        if (width === 975 && height === 650) return 'large';
-        if (width === 800 && height === 800) return 'square';
-        return 'standard';
-      };
-      const chartSize = getChartSize();
-      const MM_THEME = generateMMTheme(chartSize, processedOptions);
+      const width = processedOptions.chart?.width;
+      const height = processedOptions.chart?.height;
+      const chartSize =
+        width === 975 && height === 650 ? 'large' :
+        width === 800 && height === 800 ? 'square' : 'standard';
 
-      // 合併 AI 設定與 MM_THEME 樣式
+      const { theme: MM_THEME, base: themeBase } = applyMMTheme(processedOptions, chartSize);
+
       const finalChartOptions = {
-        ...processedOptions,
-        lang: MM_THEME.lang,
-        colors: MM_THEME.colors,
-        chart: { 
-          ...processedOptions.chart, 
-          ...MM_THEME.chart
-        },
-        title: { 
-          ...processedOptions.title, 
-          style: MM_THEME.title.style
-        },
-        subtitle: { 
-          ...MM_THEME.subtitle
-        },
-        xAxis: { 
-          ...(Array.isArray(processedOptions.xAxis) ? processedOptions.xAxis[0] : processedOptions.xAxis), 
-          ...MM_THEME.xAxis
-        },
-        legend: { 
-          ...processedOptions.legend, 
-          ...MM_THEME.legend
-        },
+        ...themeBase,
+        legend: { ...processedOptions.legend, ...MM_THEME.legend },
         plotOptions: {
           ...processedOptions.plotOptions,
           ...MM_THEME.plotOptions,
-          series: {
-            ...processedOptions.plotOptions?.series,
-            ...MM_THEME.plotOptions.series
-          }
+          series: { ...processedOptions.plotOptions?.series, ...MM_THEME.plotOptions.series },
         },
-        credits: MM_THEME.credits,
-        exporting: MM_THEME.exporting
       };
-
-      const yAxisTemplate = MM_THEME.yAxis;
-
-      if (Array.isArray(processedOptions.yAxis)) {
-        // 雙Y軸：陣列格式，為每個軸套用主題樣式
-        finalChartOptions.yAxis = processedOptions.yAxis.map(axis => ({
-          ...axis, 
-          ...yAxisTemplate, 
-          labels: { ...axis.labels, style: yAxisTemplate.labels.style }, 
-          title: { ...axis.title, style: yAxisTemplate.title.style }
-        }));
-      } else {
-        // 單一Y軸：物件格式，直接套用主題樣式
-        finalChartOptions.yAxis = { 
-          ...(processedOptions.yAxis || {}), 
-          ...yAxisTemplate, 
-          labels: { ...(processedOptions.yAxis?.labels), style: yAxisTemplate.labels.style }, 
-          title: { ...(processedOptions.yAxis?.title), style: yAxisTemplate.title.style }
-        };
-      }
 
       setChartOptions(finalChartOptions);
       setGeneratedCode(JSON.stringify(finalChartOptions, null, 2));
