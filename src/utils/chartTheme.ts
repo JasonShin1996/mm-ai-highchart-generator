@@ -1,4 +1,4 @@
-export const generateMMTheme = (size = 'standard', chartOptions = null) => {
+export const generateMMTheme = (size = 'standard', chartOptions: any = null) => {
   // 根據尺寸類型設定對應的配置
   const getSizeConfig = () => {
     switch (size) {
@@ -43,7 +43,7 @@ export const generateMMTheme = (size = 'standard', chartOptions = null) => {
     
     // 檢查是否有任何 series 使用線條類型（包括組合圖中的線條系列）
     const lineBasedTypes = ['line', 'spline', 'area', 'areaspline'];
-    return chartOptions.series.some(series => 
+    return chartOptions.series.some((series: any) => 
       series && series.type && lineBasedTypes.includes(series.type)
     );
   };
@@ -59,7 +59,7 @@ export const generateMMTheme = (size = 'standard', chartOptions = null) => {
       
           // 檢查 series 中是否有 scatter 或 bubble 類型（包括組合圖中的散佈/泡泡系列）
     if (chartOptions.series && Array.isArray(chartOptions.series)) {
-      return chartOptions.series.some(series => 
+      return chartOptions.series.some((series: any) => 
         series && series.type && (series.type === 'scatter' || series.type === 'bubble')
       );
     }
@@ -82,7 +82,10 @@ export const generateMMTheme = (size = 'standard', chartOptions = null) => {
   };
   
   return {
-    'lang': {'numericSymbols': ["K", "M", "B", "T", "P", "E"]},
+    'lang': {
+      'numericSymbols': ["K", "M", "B", "T", "P", "E"],
+      'locale': 'en-US',
+    },
     'colors': [
       '#3BAFDA','#E9573F','#F6BB42','#70CA63','#7D5B4F','#3B3F4F',
       '#926DDE','#57C7D4','#F44C87','#BC94AC','#184E74','#026352',
