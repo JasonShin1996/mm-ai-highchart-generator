@@ -25,4 +25,14 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Highcharts 及其模組體積較大且更新頻率低，獨立成 vendor chunk 以利瀏覽器快取
+          if (id.includes("node_modules/highcharts")) return "highcharts";
+        },
+      },
+    },
+  },
 }));
