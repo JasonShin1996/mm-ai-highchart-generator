@@ -1,5 +1,5 @@
 {
   "build_command": "pip install -r requirements.txt",
-  "start_command": "uvicorn main:app --host 0.0.0.0 --port $PORT",
+  "start_command": "uvicorn main:app --host 0.0.0.0 --port ${WEB_PORT:-${PORT:-8000}}",
   "install_command": "pip install -r requirements.txt"
 } 

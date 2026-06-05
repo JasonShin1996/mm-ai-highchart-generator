@@ -271,7 +271,6 @@ export const useChartGeneration = () => {
 
       const finalChartOptions = {
         ...themeBase,
-        legend: { ...processedOptions.legend, ...MM_THEME.legend },
         plotOptions: {
           ...processedOptions.plotOptions,
           ...MM_THEME.plotOptions,

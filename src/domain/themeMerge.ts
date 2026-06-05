@@ -35,7 +35,6 @@ export function mergeYAxisWithAI(baseYAxis: any, aiYAxis: any): any {
 }
 
 // Apply the full MM theme to a Highcharts options object.
-// legend and plotOptions precedence differ by use case, so they are left to the caller.
 export function applyMMTheme(
   options: any,
   size: 'standard' | 'large' | 'square' = 'standard'
@@ -53,6 +52,8 @@ export function applyMMTheme(
       ...theme.xAxis,
     },
     yAxis: mergeYAxisWithTheme(options.yAxis, theme.yAxis),
+    // caller legend（位置、enabled 等）先鋪，主題 itemStyle 後蓋確保品牌樣式
+    legend: { ...options.legend, ...theme.legend },
     credits: theme.credits,
     exporting: theme.exporting,
   };

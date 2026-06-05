@@ -54,7 +54,7 @@ const AskAiConfigButton: React.FC<AskAiConfigButtonProps> = ({
           <DialogHeader>
             <DialogTitle>Ask AI 調整配置</DialogTitle>
             <DialogDescription>
-              描述你想修改的樣式或設定，AI 會直接調整 JSON，不會重新執行 Python 代碼。
+              描述你想修改的樣式或設定（這邊不會改數據），AI 會直接調整 JSON，不會重新執行 Python 代碼。
             </DialogDescription>
           </DialogHeader>
 
