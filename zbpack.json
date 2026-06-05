@@ -1,5 +1,5 @@
 {
   "build_command": "npm install && npm run build",
   "install_command": "npm install",
-  "start_command": "npm run preview"
+  "start_command": "vite preview --host 0.0.0.0 --port $PORT"
 } 
