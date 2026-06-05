@@ -1,18 +1,19 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { BarChart3 } from 'lucide-react';
+import Highcharts from '@/lib/highcharts';
 
-declare global {
-  interface Window {
-    Highcharts: any;
-  }
+interface ChartDisplayProps {
+  chartOptions: Highcharts.Options | null;
+  isLoading?: boolean;
+  setChartOptions?: (options: Highcharts.Options) => void;
 }
 
-const ChartDisplay = ({ chartOptions, isLoading, setChartOptions }) => {
-  const chartRef = useRef(null);
-  const chartInstanceRef = useRef(null);
+const ChartDisplay = ({ chartOptions, isLoading, setChartOptions }: ChartDisplayProps) => {
+  const chartRef = useRef<HTMLDivElement>(null);
+  const chartInstanceRef = useRef<Highcharts.Chart | null>(null);
 
   useEffect(() => {
-    if (!chartOptions || !window.Highcharts || !chartRef.current) return;
+    if (!chartOptions || !chartRef.current) return;
 
     // 清理舊的圖表實例
     if (chartInstanceRef.current) {
@@ -20,17 +21,16 @@ const ChartDisplay = ({ chartOptions, isLoading, setChartOptions }) => {
     }
 
     try {
-      // 創建新的圖表
-      chartInstanceRef.current = window.Highcharts.chart(chartRef.current, chartOptions);
+      chartInstanceRef.current = Highcharts.chart(chartRef.current, chartOptions);
 
-      // --- 新增：同步 Highcharts 分配的顏色到 chartOptions ---
+      // 同步 Highcharts 自動分配的顏色回 chartOptions，讓設定面板可顯示實際色票
       if (setChartOptions && chartInstanceRef.current && chartOptions.series) {
         const highchartsSeries = chartInstanceRef.current.series;
         let updated = false;
-        const newSeries = chartOptions.series.map((s, i) => {
-          if (!s.color && highchartsSeries[i] && highchartsSeries[i].color) {
+        const newSeries = (chartOptions.series as any[]).map((s, i) => {
+          if (!s.color && highchartsSeries[i] && (highchartsSeries[i] as any).color) {
             updated = true;
-            return { ...s, color: highchartsSeries[i].color };
+            return { ...s, color: (highchartsSeries[i] as any).color };
           }
           return s;
         });
@@ -38,7 +38,6 @@ const ChartDisplay = ({ chartOptions, isLoading, setChartOptions }) => {
           setChartOptions({ ...chartOptions, series: newSeries });
         }
       }
-      // ---
     } catch (error) {
       console.error('Highcharts rendering error:', error);
     }
@@ -52,8 +51,8 @@ const ChartDisplay = ({ chartOptions, isLoading, setChartOptions }) => {
   }, [chartOptions, setChartOptions]);
 
   // 動態獲取圖表尺寸
-  const chartWidth = chartOptions?.chart?.width || 960;
-  const chartHeight = chartOptions?.chart?.height || 540;
+  const chartWidth = (chartOptions?.chart?.width as number) || 960;
+  const chartHeight = (chartOptions?.chart?.height as number) || 540;
 
   if (isLoading) {
     return (
@@ -79,13 +78,13 @@ const ChartDisplay = ({ chartOptions, isLoading, setChartOptions }) => {
 
   return (
     <div className="w-full overflow-x-auto">
-      <div 
+      <div
         ref={chartRef}
         className="mx-auto bg-white rounded-lg shadow-sm"
-        style={{ 
-          width: `${chartWidth}px`, 
-          height: `${chartHeight}px`, 
-          minWidth: `${chartWidth}px` 
+        style={{
+          width: `${chartWidth}px`,
+          height: `${chartHeight}px`,
+          minWidth: `${chartWidth}px`,
         }}
       />
     </div>

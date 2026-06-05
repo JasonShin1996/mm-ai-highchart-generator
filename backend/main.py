@@ -16,7 +16,7 @@ http_client = httpx.AsyncClient(
     limits=httpx.Limits(max_connections=10, max_keepalive_connections=5)
 )
 
-app = FastAPI(title="Chart Wizard API", version="1.0.0")
+app = FastAPI(title="Chart Wizard API", version="2.0.0")
 
 # 原始開發環境 CORS 設定 (保持不變)
 ORIGINAL_CORS_ORIGINS = [
@@ -119,6 +119,10 @@ class TimeSeriesData(BaseModel):
 class DatabaseLoadResponse(BaseModel):
     time_series: list[TimeSeriesData]
 
+from v2_routes import router as v2_router
+from config import GEMINI_MODEL
+app.include_router(v2_router, prefix="/api/v2")
+
 @app.get("/")
 async def root():
     return {"message": "Chart Wizard API is running"}
@@ -184,8 +188,8 @@ async def analyze_data(request: DataAnalysisRequest):
     """
     
     # Gemini API 設置
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key={api_key}"
-    
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
+
     payload = {
         "contents": [{"role": "user", "parts": [{"text": analysis_prompt}]}],
         "generationConfig": {"responseMimeType": "application/json"}
@@ -263,8 +267,8 @@ async def generate_chart(request: PromptRequest):
         raise HTTPException(status_code=500, detail="Gemini API key is not configured")
     
     # Gemini API 設置
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key={api_key}"
-    
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
+
     payload = {
         "contents": [{"role": "user", "parts": [{"text": request.prompt}]}],
         "generationConfig": {"responseMimeType": "text/plain"}

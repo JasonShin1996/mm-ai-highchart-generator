@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { searchDatabase, loadDatabaseData } from '@/services/database';
+import type { DatabaseItem } from '@/types/database';
 
 // 國家代碼到國旗 emoji 的映射
 const countryFlags = {
@@ -80,19 +81,6 @@ const frequencyMap = {
   'Q': '季',
   'Y': '年'
 };
-
-interface DatabaseItem {
-  id: string;
-  name_tc: string;
-  name_en: string;
-  country: string;
-  min_date: string;
-  max_date: string;
-  frequency: string;
-  units: string;
-  currency: string;
-  score: number;
-}
 
 interface DatabaseSearchDialogProps {
   open: boolean;

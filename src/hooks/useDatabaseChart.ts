@@ -1,6 +1,8 @@
 import { generateChartConfig } from '../services/gemini';
-import { generateMMTheme } from '../utils/chartTheme';
 import { ConverterFactory } from '../converters';
+import { generateYAxisTitle } from '@/domain/unitMapping';
+import { extractJsonObjectString } from '@/domain/jsonParser';
+import { applyMMTheme, mergeYAxisWithAI } from '@/domain/themeMerge';
 
 // 注意：散佈圖數據驗證和轉換邏輯已移至 ScatterConverter 中
 
@@ -65,66 +67,7 @@ const generateBaseChartConfig = (seriesData: any[], chartType: string, prompt: s
     return { xAxisTitle, yAxisTitle };
   };
 
-  // 單位映射表
-  const unitMapping: { [key: string]: string } = {
-    '': 'Number', 
-    'k': 'Thousands', 
-    '10k': '10 Thousands', 
-    'm': 'Millions',
-    '10m': '10 Millions', 
-    '100m': '100 Millions', 
-    'b': 'Billions', 
-    't': 'Trillions',
-    'pct': 'Percent', 
-    'pctp': 'Percentage Point', 
-    'idx': 'Index', 
-    'bp': 'Basis Point'
-  };
-
-  // 貨幣映射表
-  const currencyMapping: { [key: string]: string } = {
-    'usd': 'USD',
-    'cny': 'CNY', 
-    'eur': 'EUR',
-    'jpy': 'JPY',
-    'gbp': 'GBP',
-    'aud': 'AUD',
-    'cad': 'CAD',
-    'hkd': 'HKD',
-    'twd': 'TWD',
-    'krw': 'KRW',
-    'inr': 'INR',
-    'sgd': 'SGD',
-    'myr': 'MYR',
-    'thb': 'THB',
-    'rub': 'RUB',
-    'brl': 'BRL',
-    'zar': 'ZAR',
-    'sar': 'SAR',
-    'vnd': 'VND'
-  };
-
-  // 生成帶單位的Y軸標題
-  const generateYAxisTitle = (dataItem: any) => {
-    if (!dataItem) return '';
-    
-    const { units, currency } = dataItem;
-    
-    // 轉換單位縮寫為完整名稱
-    const fullUnit = unitMapping[units] || units;
-    
-    if (currency && currency !== 'N/A' && currency.trim() !== '') {
-      // 轉換貨幣縮寫為大寫格式
-      const fullCurrency = currencyMapping[currency.toLowerCase()] || currency.toUpperCase();
-      const result = `${fullUnit}, ${fullCurrency}`;
-      console.log(`📊 Y軸標題生成: "${result}" (來自: units="${units}", currency="${currency}")`);
-      return result;
-    } else {
-      const result = fullUnit || '';
-      console.log(`📊 Y軸標題生成: "${result}" (來自: units="${units}")`);
-      return result;
-    }
-  };
+  // 單位/幣別映射與 Y 軸標題生成見 @/domain/unitMapping（generateYAxisTitle）
 
   // 生成多個Y軸配置
   const generateMultipleYAxes = (databaseData: any[], chartType: string, yAxisTitle: string) => {
@@ -309,66 +252,11 @@ export const useDatabaseChart = () => {
       const baseConfig = generateBaseChartConfig(seriesData, selectedChartType, prompt, databaseData);
       console.log('⚙️ 基礎配置:', baseConfig);
       
-      // 為基礎配置添加 MM_THEME 樣式，確保圖表能正確顯示
-      const MM_THEME = generateMMTheme('standard', baseConfig);
+      const { theme: MM_THEME, base: initialBase } = applyMMTheme(baseConfig, 'standard');
       const initialChartOptions = {
-        ...baseConfig,
-        lang: MM_THEME.lang,
-        colors: MM_THEME.colors,
-        chart: { 
-          ...baseConfig.chart, 
-          ...MM_THEME.chart
-        },
-        title: { 
-          ...baseConfig.title, 
-          style: MM_THEME.title.style
-        },
-        subtitle: { 
-          text: 'MacroMicro.me | MacroMicro',
-          style: MM_THEME.subtitle.style
-        },
-        xAxis: { 
-          ...baseConfig.xAxis, 
-          ...MM_THEME.xAxis
-        },
-        yAxis: Array.isArray(baseConfig.yAxis) ? 
-          // 多Y軸：陣列格式，為每個軸套用主題樣式但保留標題文字
-          baseConfig.yAxis.map((axis, index) => {
-            const mergedAxis = {
-              ...axis,
-              ...MM_THEME.yAxis,
-              title: {
-                ...MM_THEME.yAxis.title,
-                text: axis.title?.text || ''  // 保留原始標題文字
-              }
-            };
-            console.log(`✅ Y軸 ${index} 最終配置:`, mergedAxis);
-            console.log(`📝 Y軸 ${index} 標題文字: "${mergedAxis.title.text}"`);
-            return mergedAxis;
-                       }) : (() => {
-            // 單一Y軸：物件格式，套用主題樣式但保留標題文字
-            const mergedAxis = {
-              ...baseConfig.yAxis,
-              ...MM_THEME.yAxis,
-              title: {
-                ...MM_THEME.yAxis.title,
-                text: baseConfig.yAxis?.title?.text || ''  // 保留原始標題文字
-              }
-            };
-            console.log(`✅ 單一Y軸最終配置:`, mergedAxis);
-            console.log(`📝 單一Y軸標題文字: "${mergedAxis.title.text}"`);
-            return mergedAxis;
-          })(),
-        legend: { 
-          ...baseConfig.legend, 
-          itemStyle: MM_THEME.legend.itemStyle
-        },
-        plotOptions: {
-          ...MM_THEME.plotOptions,
-          ...baseConfig.plotOptions
-        },
-        credits: MM_THEME.credits,
-        exporting: MM_THEME.exporting
+        ...initialBase,
+        legend: { ...baseConfig.legend, itemStyle: MM_THEME.legend.itemStyle },
+        plotOptions: { ...MM_THEME.plotOptions, ...baseConfig.plotOptions },
       };
       
       // 為散佈圖特別處理軸標題（在主題合併後）
@@ -451,133 +339,31 @@ ${JSON.stringify(configTemplate, null, 2)}
       `;
 
       const chartConfigString = await generateChartConfig(optimizedPrompt);
-      let configStr = chartConfigString.replace(/^```json\s*/, '').replace(/```$/, '');
-      const firstBracket = configStr.indexOf('{');
-      const lastBracket = configStr.lastIndexOf('}');
-      
-      if (firstBracket === -1 || lastBracket === -1) {
-        throw new Error("AI 回傳的內容中找不到有效的 JSON 物件。");
-      }
-      
-      configStr = configStr.substring(firstBracket, lastBracket + 1);
-      const aiChartOptions = JSON.parse(configStr);
+      const aiChartOptions = JSON.parse(extractJsonObjectString(chartConfigString));
       
       // 合併 AI 樣式與基礎配置
       const processedOptions = {
         ...baseConfig,
         ...aiChartOptions,
-        // 軸標題：優先使用 AI 設置的，如果 AI 沒有設置則使用基礎配置的
         xAxis: {
           ...baseConfig.xAxis,
           ...aiChartOptions.xAxis,
           title: {
             ...baseConfig.xAxis.title,
-            text: aiChartOptions.xAxis?.title?.text || baseConfig.xAxis.title.text
-          }
+            text: aiChartOptions.xAxis?.title?.text || baseConfig.xAxis.title.text,
+          },
         },
-        yAxis: Array.isArray(baseConfig.yAxis) ? 
-          // 多Y軸：陣列格式，智能合併AI設定
-          baseConfig.yAxis.map((axis, index) => {
-            const aiYAxisConfig = aiChartOptions.yAxis && Array.isArray(aiChartOptions.yAxis) ? aiChartOptions.yAxis[index] : {};
-            const aiTitleText = aiYAxisConfig?.title?.text;
-            
-            // 簡潔邏輯：AI有設定標題就用AI的，沒有就保留原本的單位標題
-            const finalTitleText = aiTitleText || axis.title.text;
-            
-            console.log(`📝 Y軸 ${index}: AI="${aiTitleText || '無'}", 最終="${finalTitleText}"`);
-            
-            return {
-              ...axis,
-              ...aiYAxisConfig,
-              title: {
-                ...axis.title,
-                ...aiYAxisConfig?.title,
-                text: finalTitleText
-              }
-            };
-          }) : (() => {
-            // 單一Y軸：物件格式，智能合併AI設定
-            const aiTitleText = aiChartOptions.yAxis?.title?.text;
-            const finalTitleText = aiTitleText || baseConfig.yAxis.title.text;
-            
-            console.log(`📝 單一Y軸: AI="${aiTitleText || '無'}", 最終="${finalTitleText}"`);
-            
-            return {
-              ...baseConfig.yAxis,
-              ...aiChartOptions.yAxis,
-              title: {
-                ...baseConfig.yAxis.title,
-                ...aiChartOptions.yAxis?.title,
-                text: finalTitleText
-              }
-            };
-          })(),
-        series: baseConfig.series // 保持前端組裝的數據不變
+        yAxis: mergeYAxisWithAI(baseConfig.yAxis, aiChartOptions.yAxis),
+        series: baseConfig.series,
       };
 
-      // 根據 AI 回傳的圖表尺寸決定使用哪個主題
       const chartSize = processedOptions.chart?.width === 975 && processedOptions.chart?.height === 650 ? 'large' : 'standard';
-      const MM_THEME_OPTIMIZED = generateMMTheme(chartSize, processedOptions);
+      const { theme: MM_THEME_OPTIMIZED, base: optimizedBase } = applyMMTheme(processedOptions, chartSize);
 
-      // 合併 AI 設定與 MM_THEME 樣式
       const finalChartOptions = {
-        ...processedOptions,
-        lang: MM_THEME_OPTIMIZED.lang,
-        colors: MM_THEME_OPTIMIZED.colors,
-        chart: { 
-          ...processedOptions.chart, 
-          ...MM_THEME_OPTIMIZED.chart
-        },
-        title: { 
-          ...processedOptions.title, 
-          style: MM_THEME_OPTIMIZED.title.style
-        },
-        subtitle: { 
-          text: 'MacroMicro.me | MacroMicro',
-          style: MM_THEME.subtitle.style
-        },
-        xAxis: { 
-          ...processedOptions.xAxis, 
-          ...MM_THEME_OPTIMIZED.xAxis
-        },
-        yAxis: Array.isArray(processedOptions.yAxis) ? 
-          // 多Y軸：陣列格式，為每個軸套用優化後的主題樣式但保留標題文字
-          processedOptions.yAxis.map((axis, index) => {
-            const mergedAxis = {
-              ...axis,
-              ...MM_THEME_OPTIMIZED.yAxis,
-              title: {
-                ...MM_THEME_OPTIMIZED.yAxis.title,
-                text: axis.title?.text || ''  // 保留原始標題文字
-              }
-            };
-            console.log(`✅ 最終Y軸 ${index} 配置:`, mergedAxis);
-            console.log(`📝 最終Y軸 ${index} 標題: "${mergedAxis.title.text}"`);
-            return mergedAxis;
-          }) : (() => {
-            // 單一Y軸：物件格式，套用優化後的主題樣式但保留標題文字
-            const mergedAxis = {
-              ...processedOptions.yAxis,
-              ...MM_THEME_OPTIMIZED.yAxis,
-              title: {
-                ...MM_THEME_OPTIMIZED.yAxis.title,
-                text: processedOptions.yAxis?.title?.text || ''  // 保留原始標題文字
-              }
-            };
-            console.log(`✅ 最終單一Y軸配置:`, mergedAxis);
-            console.log(`📝 最終單一Y軸標題: "${mergedAxis.title.text}"`);
-            return mergedAxis;
-          })(),
-        legend: { 
-          ...processedOptions.legend, 
-          itemStyle: MM_THEME_OPTIMIZED.legend.itemStyle
-        },
-        plotOptions: {
-          ...MM_THEME_OPTIMIZED.plotOptions,
-          ...processedOptions.plotOptions
-        },
-        credits: MM_THEME_OPTIMIZED.credits,
-        exporting: MM_THEME_OPTIMIZED.exporting
+        ...optimizedBase,
+        legend: { ...processedOptions.legend, itemStyle: MM_THEME_OPTIMIZED.legend.itemStyle },
+        plotOptions: { ...MM_THEME_OPTIMIZED.plotOptions, ...processedOptions.plotOptions }
       };
 
       // 為散佈圖特別處理軸標題（在 AI 優化後的主題合併後）

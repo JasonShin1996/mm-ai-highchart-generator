@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, Zap, Settings, Copy, FileSpreadsheet, Edit, ArrowLeft, Database, Plus, Check } from 'lucide-react';
+import { Upload, Zap, FileSpreadsheet, Edit, ArrowLeft, Database, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,66 +8,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useNavigate } from 'react-router-dom';
 import FileUpload from '@/components/FileUpload';
 import DataPreview from '@/components/DataPreview';
-import ChartDisplay from '@/components/ChartDisplay';
-import SettingsPanel from '@/components/SettingsPanel';
 import ChartGallery from '@/components/ChartGallery';
+import ChartResultCard from '@/components/ChartResultCard';
 import DatabaseSearchDialog from '@/components/DatabaseSearchDialog';
 import { useToast } from '@/hooks/use-toast';
 import { generateChartSuggestion } from '@/services/gemini';
 import { useChartGeneration } from '@/hooks/useChartGeneration';
 import { getChartTypeName, analyzeDataAndRecommendCharts } from '@/utils/chartAnalysis';
+import { generateYAxisTitle } from '@/domain/unitMapping';
 
-// Y軸管理功能 - 從 useDatabaseChart.ts 中提取
-const unitMapping: Record<string, string> = {
-  '': 'Number',
-  'k': 'Thousands', 
-  '10k': '10 Thousands', 
-  'm': 'Millions',
-  '10m': '10 Millions', 
-  '100m': '100 Millions', 
-  'b': 'Billions', 
-  't': 'Trillions',
-  'pct': 'Percent', 
-  'pctp': 'Percentage Point', 
-  'idx': 'Index', 
-  'bp': 'Basis Point'
-};
-
-const currencyMapping: Record<string, string> = {
-  'usd': 'USD', 
-  'cny': 'CNY', 
-  'eur': 'EUR', 
-  'jpy': 'JPY', 
-  'gbp': 'GBP',
-  'aud': 'AUD', 
-  'cad': 'CAD', 
-  'hkd': 'HKD', 
-  'twd': 'TWD', 
-  'krw': 'KRW',
-  'inr': 'INR', 
-  'sgd': 'SGD', 
-  'myr': 'MYR', 
-  'thb': 'THB', 
-  'rub': 'RUB',
-  'brl': 'BRL', 
-  'zar': 'ZAR', 
-  'sar': 'SAR', 
-  'vnd': 'VND'
-};
-
-// 生成Y軸標題
-const generateYAxisTitle = (dataItem: any) => {
-  if (!dataItem) return '';
-  const { units, currency } = dataItem;
-  const fullUnit = unitMapping[units] || units || '';
-  
-  if (currency && currency !== 'N/A' && currency.trim() !== '') {
-    const fullCurrency = currencyMapping[currency.toLowerCase()] || currency.toUpperCase();
-    return `${fullUnit}, ${fullCurrency}`;
-  } else {
-    return fullUnit || '';
-  }
-};
+// 單位/幣別映射與 Y 軸標題生成見 @/domain/unitMapping（單一來源）
 
 // 生成多個Y軸配置
 const generateMultipleYAxes = (allData: any[], existingYAxes: any = null) => {
@@ -252,11 +202,6 @@ const DataFusion = () => {
   }, [optimizeDataPrecision, toast]);
 
   // 處理圖表選項變化
-  const handleChartOptionsChange = useCallback((newOptions) => {
-    setChartOptions(newOptions);
-    setGeneratedCode(JSON.stringify(newOptions, null, 2));
-  }, []);
-
   // 生成圖表
   const generateChartSmart = async () => {
     if (!fileData || !selectedChartType) {
@@ -284,34 +229,6 @@ const DataFusion = () => {
       toast({
         title: "生成失敗",
         description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  // 複製代碼
-  const copyCode = () => {
-    navigator.clipboard.writeText(generatedCode).then(() => {
-      toast({
-        title: "代碼已複製",
-        description: "圖表配置代碼已複製到剪貼簿",
-      });
-    });
-  };
-
-  // 應用編輯後的代碼
-  const applyCodeChanges = () => {
-    try {
-      const parsedOptions = JSON.parse(generatedCode);
-      setChartOptions(parsedOptions);
-      toast({
-        title: "代碼已應用",
-        description: "圖表已更新為新的配置",
-      });
-    } catch (error) {
-      toast({
-        title: "JSON 格式錯誤",
-        description: "請檢查代碼格式是否正確",
         variant: "destructive",
       });
     }
@@ -640,122 +557,60 @@ const DataFusion = () => {
 
       {/* 步驟四：圖表顯示和數據融合 */}
       {chartOptions && (
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center">
-                <span className="bg-red-500 text-white rounded-full h-8 w-8 text-sm flex items-center justify-center mr-3">
-                  4
-                </span>
-                圖表顯示與數據融合
-              </div>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowSettings(!showSettings)}
-                >
-                  <Settings className="h-4 w-4 mr-1" />
-                  設定
-                </Button>
-                {canFuseData() ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowDatabaseSearch(true)}
-                    className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
-                  >
-                    <Database className="h-4 w-4 mr-1" />
-                    搜尋M平方數據
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled
-                    className="bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
-                    title="只有時間序列圖表才能添加M平方數據庫數據"
-                  >
-                    <Database className="h-4 w-4 mr-1" />
-                    搜尋M平方數據
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={copyCode}
-                >
-                  <Copy className="h-4 w-4 mr-1" />
-                  複製代碼
-                </Button>
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              
-              {/* 數據融合說明 */}
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">數據融合說明</h3>
-                    <div className="mt-1 text-sm text-red-700">
-                      <p>只有特定圖表類別（折線圖、柱狀圖、面積圖、堆疊柱狀圖、平滑線圖、組合圖）與時間序列資料（X軸類別為datetime），才可添加M平方資料庫數據。</p>
-                    </div>
+        <ChartResultCard
+          stepNumber={4}
+          stepColor="red"
+          title="圖表顯示與數據融合"
+          chartOptions={chartOptions}
+          setChartOptions={setChartOptions}
+          isLoading={isLoading}
+          isOptimizing={isOptimizing}
+          showSettings={showSettings}
+          setShowSettings={setShowSettings}
+          generatedCode={generatedCode}
+          setGeneratedCode={setGeneratedCode}
+          extraHeaderActions={
+            canFuseData() ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDatabaseSearch(true)}
+                className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+              >
+                <Database className="h-4 w-4 mr-1" />
+                搜尋M平方數據
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled
+                className="bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
+                title="只有時間序列圖表才能添加M平方數據庫數據"
+              >
+                <Database className="h-4 w-4 mr-1" />
+                搜尋M平方數據
+              </Button>
+            )
+          }
+          extraContent={
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">數據融合說明</h3>
+                  <div className="mt-1 text-sm text-red-700">
+                    <p>只有特定圖表類別（折線圖、柱狀圖、面積圖、堆疊柱狀圖、平滑線圖、組合圖）與時間序列資料（X軸類別為datetime），才可添加M平方資料庫數據。</p>
                   </div>
                 </div>
-              </div>
-
-              {/* 圖表顯示 */}
-              <div className="border rounded-lg p-4 bg-white">
-                <ChartDisplay 
-                  chartOptions={chartOptions} 
-                  isLoading={isLoading}
-                  setChartOptions={setChartOptions}
-                />
-              </div>
-
-              {/* 設定面板 */}
-              {showSettings && (
-                <div className="border rounded-lg p-4">
-                  <SettingsPanel
-                    chartOptions={chartOptions}
-                    onOptionsChange={isOptimizing ? undefined : handleChartOptionsChange}
-                    databaseData={null}
-                    onDateChange={() => {}}
-                  />
-                </div>
-              )}
-
-              {/* 代碼編輯器 */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>圖表配置代碼（可編輯）</Label>
-                  <Button
-                    onClick={applyCodeChanges}
-                    size="sm"
-                    variant="outline"
-                    className="h-8"
-                  >
-                    <Check className="h-4 w-4 mr-1" />
-                    應用變更
-                  </Button>
-                </div>
-                <textarea
-                  value={generatedCode}
-                  onChange={(e) => setGeneratedCode(e.target.value)}
-                  className="w-full h-48 p-4 text-sm font-mono bg-gray-800 text-white rounded border border-gray-700 focus:border-blue-500 focus:outline-none resize-none overflow-auto"
-                  spellCheck={false}
-                />
               </div>
             </div>
-          </CardContent>
-        </Card>
+          }
+        />
       )}
 
       {/* 數據預覽對話框 */}

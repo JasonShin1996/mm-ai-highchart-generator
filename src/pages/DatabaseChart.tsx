@@ -1,14 +1,13 @@
 import React, { useState, useCallback } from 'react';
-import { Database, Zap, Settings, Copy, Search, X, TrendingUp, ArrowLeft, Check } from 'lucide-react';
+import { Database, Zap, Search, X, TrendingUp, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useNavigate } from 'react-router-dom';
-import ChartDisplay from '@/components/ChartDisplay';
-import SettingsPanel from '@/components/SettingsPanel';
 import ChartGallery from '@/components/ChartGallery';
+import ChartResultCard from '@/components/ChartResultCard';
 import DatabaseSearchDialog from '@/components/DatabaseSearchDialog';
 import { useToast } from '@/hooks/use-toast';
 import { useDatabaseChart } from '@/hooks/useDatabaseChart';
@@ -118,12 +117,6 @@ const DatabaseChart = () => {
     }
   }, [toast, availableChartTypes]);
 
-  // 處理圖表選項變化
-  const handleChartOptionsChange = useCallback((newOptions) => {
-    setChartOptions(newOptions);
-    setGeneratedCode(JSON.stringify(newOptions, null, 2));
-  }, []);
-
   // 生成圖表
   const generateChartSmart = async (selectedDate?: string) => {
     if (!databaseData) {
@@ -147,40 +140,6 @@ const DatabaseChart = () => {
       toast,
       selectedDate
     );
-  };
-
-  // 複製代碼
-  const copyCode = () => {
-    navigator.clipboard.writeText(generatedCode).then(() => {
-      toast({
-        title: "已複製",
-        description: "圖表設定碼已複製到剪貼簿",
-      });
-    }).catch(() => {
-      toast({
-        title: "複製失敗",
-        description: "無法複製到剪貼簿",
-        variant: "destructive",
-      });
-    });
-  };
-
-  // 應用編輯後的代碼
-  const applyCodeChanges = () => {
-    try {
-      const parsedOptions = JSON.parse(generatedCode);
-      setChartOptions(parsedOptions);
-      toast({
-        title: "代碼已應用",
-        description: "圖表已更新為新的配置",
-      });
-    } catch (error) {
-      toast({
-        title: "JSON 格式錯誤",
-        description: "請檢查代碼格式是否正確",
-        variant: "destructive",
-      });
-    }
   };
 
   return (
@@ -371,87 +330,23 @@ const DatabaseChart = () => {
 
         {/* 步驟四：圖表顯示和設定 */}
         {chartOptions && (
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <span className="bg-green-500 text-white rounded-full h-8 w-8 text-sm flex items-center justify-center mr-3">
-                    4
-                  </span>
-                  生成的圖表
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowSettings(!showSettings)}
-                  >
-                    <Settings className="h-4 w-4 mr-1" />
-                    設定
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={copyCode}
-                  >
-                    <Copy className="h-4 w-4 mr-1" />
-                    複製代碼
-                  </Button>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {/* 圖表顯示 */}
-                <div className="border rounded-lg p-4 bg-white">
-                  <ChartDisplay 
-                    chartOptions={chartOptions} 
-                    isLoading={false}
-                    setChartOptions={setChartOptions}
-                  />
-                </div>
-
-                {/* 設定面板 */}
-                {showSettings && (
-                  <div className="border rounded-lg p-4">
-                    <SettingsPanel
-                      chartOptions={chartOptions}
-                      onOptionsChange={isOptimizing ? undefined : handleChartOptionsChange}
-                      databaseData={databaseData}
-                      onDateChange={(selectedDate) => {
-                        // 當用戶選擇新日期時，重新生成圖表
-                        if (selectedDate && prompt && selectedChartType) {
-                          generateChartSmart(selectedDate);
-                        }
-                      }}
-                    />
-                  </div>
-                )}
-
-                {/* 代碼編輯器 */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>圖表配置代碼（可編輯）</Label>
-                    <Button
-                      onClick={applyCodeChanges}
-                      size="sm"
-                      variant="outline"
-                      className="h-8"
-                    >
-                      <Check className="h-4 w-4 mr-1" />
-                      應用變更
-                    </Button>
-                  </div>
-                  <textarea
-                    value={generatedCode}
-                    onChange={(e) => setGeneratedCode(e.target.value)}
-                    className="w-full h-48 p-4 text-sm font-mono bg-gray-800 text-white rounded border border-gray-700 focus:border-blue-500 focus:outline-none resize-none overflow-auto"
-                    spellCheck={false}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <ChartResultCard
+            stepNumber={4}
+            stepColor="green"
+            chartOptions={chartOptions}
+            setChartOptions={setChartOptions}
+            isOptimizing={isOptimizing}
+            showSettings={showSettings}
+            setShowSettings={setShowSettings}
+            generatedCode={generatedCode}
+            setGeneratedCode={setGeneratedCode}
+            databaseData={databaseData}
+            onDateChange={(selectedDate) => {
+              if (selectedDate && prompt && selectedChartType) {
+                generateChartSmart(selectedDate);
+              }
+            }}
+          />
         )}
       </div>
 

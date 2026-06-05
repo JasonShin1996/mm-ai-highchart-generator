@@ -103,13 +103,14 @@ const FileUpload = ({ onFileUpload, colorTheme = 'blue' }) => {
             const processedResults = {
               ...results,
               meta: { ...results.meta, fields: processedHeaders },
-              data: newData
+              data: newData,
+              file,
             };
             onFileUpload(processedResults);
             resolve(processedResults);
           } else {
-            onFileUpload(results);
-            resolve(results);
+            onFileUpload({ ...results, file });
+            resolve({ ...results, file });
           }
         },
         error: (error) => {
@@ -161,7 +162,7 @@ const FileUpload = ({ onFileUpload, colorTheme = 'blue' }) => {
             return rowObject;
           });
 
-          const results = { meta: { fields: processedHeaders }, data: jsonData };
+          const results = { meta: { fields: processedHeaders }, data: jsonData, file };
           onFileUpload(results);
           resolve(results);
         } catch (error) {
