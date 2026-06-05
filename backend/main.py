@@ -20,11 +20,12 @@ app = FastAPI(title="Chart Wizard API", version="2.0.0")
 
 # 原始開發環境 CORS 設定 (保持不變)
 ORIGINAL_CORS_ORIGINS = [
-    "http://localhost:8080", 
-    "http://localhost:3000", 
+    "http://localhost:8080",
+    "http://localhost:3000",
     "http://localhost:5173",
     "http://192.168.1.109:8080",
-    "https://mm-ai-highchart-generator.zeabur.app"  # 添加這一行
+    "https://mm-ai-highchart-generator.zeabur.app",
+    "https://mm-ai-highchart-generator-lot.zeabur.app",
 ]
 
 # 環境檢測函數
@@ -54,7 +55,12 @@ def get_zeabur_domains():
 def get_effective_cors_origins():
     """獲取有效的 CORS 來源列表"""
     origins = ORIGINAL_CORS_ORIGINS.copy()
-    
+
+    # 永遠讀取 FRONTEND_URL（不限於 Zeabur 環境）
+    frontend_url = os.getenv("FRONTEND_URL")
+    if frontend_url:
+        origins.append(frontend_url)
+
     # 如果是 Zeabur 環境，添加 Zeabur 域名
     if is_zeabur_environment():
         zeabur_origins = get_zeabur_domains()
