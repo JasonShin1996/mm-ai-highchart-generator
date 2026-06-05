@@ -1,6 +1,8 @@
 import { generateChartConfig } from '../services/gemini';
 import { generateMMTheme } from '../utils/chartTheme';
 import { ConverterFactory } from '../converters';
+import { generateYAxisTitle } from '@/domain/unitMapping';
+import { extractJsonObjectString } from '@/domain/jsonParser';
 
 // 注意：散佈圖數據驗證和轉換邏輯已移至 ScatterConverter 中
 
@@ -65,66 +67,7 @@ const generateBaseChartConfig = (seriesData: any[], chartType: string, prompt: s
     return { xAxisTitle, yAxisTitle };
   };
 
-  // 單位映射表
-  const unitMapping: { [key: string]: string } = {
-    '': 'Number', 
-    'k': 'Thousands', 
-    '10k': '10 Thousands', 
-    'm': 'Millions',
-    '10m': '10 Millions', 
-    '100m': '100 Millions', 
-    'b': 'Billions', 
-    't': 'Trillions',
-    'pct': 'Percent', 
-    'pctp': 'Percentage Point', 
-    'idx': 'Index', 
-    'bp': 'Basis Point'
-  };
-
-  // 貨幣映射表
-  const currencyMapping: { [key: string]: string } = {
-    'usd': 'USD',
-    'cny': 'CNY', 
-    'eur': 'EUR',
-    'jpy': 'JPY',
-    'gbp': 'GBP',
-    'aud': 'AUD',
-    'cad': 'CAD',
-    'hkd': 'HKD',
-    'twd': 'TWD',
-    'krw': 'KRW',
-    'inr': 'INR',
-    'sgd': 'SGD',
-    'myr': 'MYR',
-    'thb': 'THB',
-    'rub': 'RUB',
-    'brl': 'BRL',
-    'zar': 'ZAR',
-    'sar': 'SAR',
-    'vnd': 'VND'
-  };
-
-  // 生成帶單位的Y軸標題
-  const generateYAxisTitle = (dataItem: any) => {
-    if (!dataItem) return '';
-    
-    const { units, currency } = dataItem;
-    
-    // 轉換單位縮寫為完整名稱
-    const fullUnit = unitMapping[units] || units;
-    
-    if (currency && currency !== 'N/A' && currency.trim() !== '') {
-      // 轉換貨幣縮寫為大寫格式
-      const fullCurrency = currencyMapping[currency.toLowerCase()] || currency.toUpperCase();
-      const result = `${fullUnit}, ${fullCurrency}`;
-      console.log(`📊 Y軸標題生成: "${result}" (來自: units="${units}", currency="${currency}")`);
-      return result;
-    } else {
-      const result = fullUnit || '';
-      console.log(`📊 Y軸標題生成: "${result}" (來自: units="${units}")`);
-      return result;
-    }
-  };
+  // 單位/幣別映射與 Y 軸標題生成見 @/domain/unitMapping（generateYAxisTitle）
 
   // 生成多個Y軸配置
   const generateMultipleYAxes = (databaseData: any[], chartType: string, yAxisTitle: string) => {
@@ -451,16 +394,7 @@ ${JSON.stringify(configTemplate, null, 2)}
       `;
 
       const chartConfigString = await generateChartConfig(optimizedPrompt);
-      let configStr = chartConfigString.replace(/^```json\s*/, '').replace(/```$/, '');
-      const firstBracket = configStr.indexOf('{');
-      const lastBracket = configStr.lastIndexOf('}');
-      
-      if (firstBracket === -1 || lastBracket === -1) {
-        throw new Error("AI 回傳的內容中找不到有效的 JSON 物件。");
-      }
-      
-      configStr = configStr.substring(firstBracket, lastBracket + 1);
-      const aiChartOptions = JSON.parse(configStr);
+      const aiChartOptions = JSON.parse(extractJsonObjectString(chartConfigString));
       
       // 合併 AI 樣式與基礎配置
       const processedOptions = {

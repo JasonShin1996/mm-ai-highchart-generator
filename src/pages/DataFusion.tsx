@@ -16,58 +16,9 @@ import { useToast } from '@/hooks/use-toast';
 import { generateChartSuggestion } from '@/services/gemini';
 import { useChartGeneration } from '@/hooks/useChartGeneration';
 import { getChartTypeName, analyzeDataAndRecommendCharts } from '@/utils/chartAnalysis';
+import { generateYAxisTitle } from '@/domain/unitMapping';
 
-// Y軸管理功能 - 從 useDatabaseChart.ts 中提取
-const unitMapping: Record<string, string> = {
-  '': 'Number',
-  'k': 'Thousands', 
-  '10k': '10 Thousands', 
-  'm': 'Millions',
-  '10m': '10 Millions', 
-  '100m': '100 Millions', 
-  'b': 'Billions', 
-  't': 'Trillions',
-  'pct': 'Percent', 
-  'pctp': 'Percentage Point', 
-  'idx': 'Index', 
-  'bp': 'Basis Point'
-};
-
-const currencyMapping: Record<string, string> = {
-  'usd': 'USD', 
-  'cny': 'CNY', 
-  'eur': 'EUR', 
-  'jpy': 'JPY', 
-  'gbp': 'GBP',
-  'aud': 'AUD', 
-  'cad': 'CAD', 
-  'hkd': 'HKD', 
-  'twd': 'TWD', 
-  'krw': 'KRW',
-  'inr': 'INR', 
-  'sgd': 'SGD', 
-  'myr': 'MYR', 
-  'thb': 'THB', 
-  'rub': 'RUB',
-  'brl': 'BRL', 
-  'zar': 'ZAR', 
-  'sar': 'SAR', 
-  'vnd': 'VND'
-};
-
-// 生成Y軸標題
-const generateYAxisTitle = (dataItem: any) => {
-  if (!dataItem) return '';
-  const { units, currency } = dataItem;
-  const fullUnit = unitMapping[units] || units || '';
-  
-  if (currency && currency !== 'N/A' && currency.trim() !== '') {
-    const fullCurrency = currencyMapping[currency.toLowerCase()] || currency.toUpperCase();
-    return `${fullUnit}, ${fullCurrency}`;
-  } else {
-    return fullUnit || '';
-  }
-};
+// 單位/幣別映射與 Y 軸標題生成見 @/domain/unitMapping（單一來源）
 
 // 生成多個Y軸配置
 const generateMultipleYAxes = (allData: any[], existingYAxes: any = null) => {

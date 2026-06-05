@@ -1,6 +1,7 @@
 import { generateChartConfig } from '../services/gemini';
 import { generateMMTheme } from '../utils/chartTheme';
 import { getChartTypeTemplates } from '../utils/chartTypeTemplates';
+import { extractJsonObjectString, parseStringFunctions } from '@/domain/jsonParser';
 
 // 優化數據精度，減少 API 負載
 const optimizeDataPrecision = (data: any[]) => {
@@ -97,53 +98,6 @@ const assembleTimeSeriesData = (fullData: any[], instructions: any) => {
       return [timestamp, numValue];
     }).filter((point: any) => point !== null)  // 過濾掉 null 值
   }));
-};
-
-// 解析字符串格式的JavaScript函數
-const parseStringFunctions = (obj: any) => {
-  if (!obj || typeof obj !== 'object') return obj;
-  
-  // 如果是數組，遞歸處理每個元素
-  if (Array.isArray(obj)) {
-    return obj.map(item => parseStringFunctions(item));
-  }
-  
-  // 創建新對象避免直接修改原對象
-  const result: any = {};
-  
-  for (const [key, value] of Object.entries(obj)) {
-    if (typeof value === 'string' && key === 'formatter') {
-      // 檢查是否為函數字符串格式
-      const functionPattern = /^function\s*\([^)]*\)\s*\{[\s\S]*\}$/;
-      if (functionPattern.test(value.trim())) {
-        try {
-          // 安全地轉換函數字符串為實際函數
-          // 使用 Function 構造器比 eval 更安全
-          const functionMatch = value.trim().match(/^function\s*\(([^)]*)\)\s*\{([\s\S]*)\}$/);
-          if (functionMatch) {
-            const params = functionMatch[1].trim();
-            const body = functionMatch[2].trim();
-            result[key] = new Function(params, body);
-            console.log(`🔄 轉換 formatter 函數: ${key}`);
-          } else {
-            result[key] = value; // 如果無法解析，保持原值
-          }
-        } catch (error) {
-          console.error(`⚠️ 無法轉換 formatter 函數 ${key}:`, error);
-          result[key] = value; // 轉換失敗，保持原值
-        }
-      } else {
-        result[key] = value;
-      }
-    } else if (typeof value === 'object' && value !== null) {
-      // 遞歸處理嵌套對象
-      result[key] = parseStringFunctions(value);
-    } else {
-      result[key] = value;
-    }
-  }
-  
-  return result;
 };
 
 // 獲取圖表類型特定的 prompt 模板
@@ -302,16 +256,7 @@ export const useChartGeneration = () => {
       const smartPrompt = getChartTypeSpecificPrompt(selectedChartType, prompt, headers, dataSample, 'localfile', fileData.data.length);
 
       const chartConfigString = await generateChartConfig(smartPrompt);
-      let configStr = chartConfigString.replace(/^```json\s*/, '').replace(/```$/, '');
-      const firstBracket = configStr.indexOf('{');
-      const lastBracket = configStr.lastIndexOf('}');
-      
-      if (firstBracket === -1 || lastBracket === -1) {
-        throw new Error("AI 回傳的內容中找不到有效的 JSON 物件。");
-      }
-      
-      configStr = configStr.substring(firstBracket, lastBracket + 1);
-      const aiChartOptions = JSON.parse(configStr);
+      const aiChartOptions = JSON.parse(extractJsonObjectString(chartConfigString));
       
       // 處理 LLM 響應，檢查是否需要時間序列數據組裝
       const processedOptions = processLLMResponse(aiChartOptions, fileData.data);
