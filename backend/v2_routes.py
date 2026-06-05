@@ -3,6 +3,7 @@ Phase 2 v2 endpoints:
   POST /api/v2/upload   - upload file, create session workspace, return data context
   POST /api/v2/generate - SSE stream: AI writes Python code -> sandbox execution -> Highcharts JSON
 """
+import ast
 import asyncio
 import json
 import os
@@ -17,6 +18,7 @@ from typing import AsyncIterator
 import httpx
 import pandas as pd
 from fastapi import APIRouter, HTTPException, UploadFile, File
+from config import GEMINI_MODEL, MAX_RETRIES, SANDBOX_TIMEOUT
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -103,7 +105,11 @@ def _df_to_records(df: pd.DataFrame) -> list[dict]:
     for row in df.to_dict(orient="records"):
         clean = {}
         for k, v in row.items():
-            if pd.isna(v) if not isinstance(v, (list, dict)) else False:
+            if isinstance(v, pd.Timestamp):
+                clean[k] = None if pd.isna(v) else v.isoformat()
+            elif isinstance(v, float) and pd.isna(v):
+                clean[k] = None
+            elif not isinstance(v, (list, dict)) and pd.isna(v):
                 clean[k] = None
             elif hasattr(v, "item"):          # numpy scalar
                 clean[k] = v.item()
@@ -176,7 +182,7 @@ async def _call_gemini_stream(prompt: str, system: str, api_key: str) -> AsyncIt
     """Call Gemini streaming API and yield text chunks."""
     api_url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-2.0-flash:streamGenerateContent?alt=sse&key={api_key}"
+        f"{GEMINI_MODEL}:streamGenerateContent?alt=sse&key={api_key}"
     )
     payload = {
         "system_instruction": {"parts": [{"text": system}]},
@@ -210,6 +216,44 @@ def _extract_code(text: str) -> str | None:
     """Extract the first ```python ... ``` block from AI response."""
     match = re.search(r"```python\s*\n(.*?)```", text, re.DOTALL)
     return match.group(1).strip() if match else None
+
+
+_ALLOWED_IMPORTS = {"pandas", "pd", "json", "datetime", "re", "math", "numpy", "np"}
+_FORBIDDEN_BUILTINS = {"eval", "exec", "compile", "__import__", "open",
+                       "globals", "locals", "vars", "getattr", "setattr", "delattr"}
+_FORBIDDEN_MODULES  = {"os", "sys", "subprocess", "socket", "urllib",
+                       "requests", "http", "ftplib", "smtplib", "shutil"}
+
+
+def _validate_code_ast(code: str) -> tuple[bool, str]:
+    """Return (is_safe, reason). Empty reason means safe."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        return False, f"語法錯誤: {e}"
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                top = alias.name.split(".")[0]
+                if top not in _ALLOWED_IMPORTS:
+                    return False, f"不允許 import {alias.name}"
+
+        elif isinstance(node, ast.ImportFrom):
+            top = (node.module or "").split(".")[0]
+            if top not in _ALLOWED_IMPORTS:
+                return False, f"不允許 from {node.module} import ..."
+
+        elif isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name):
+                if node.func.id in _FORBIDDEN_BUILTINS:
+                    return False, f"不允許呼叫 {node.func.id}()"
+            elif isinstance(node.func, ast.Attribute):
+                if isinstance(node.func.value, ast.Name):
+                    if node.func.value.id in _FORBIDDEN_MODULES:
+                        return False, f"不允許使用 {node.func.value.id}.{node.func.attr}()"
+
+    return True, ""
 
 
 def _run_sandbox(code: str, timeout: int = 30) -> tuple[str, str]:
@@ -288,68 +332,104 @@ async def v2_generate(req: GenerateRequest):
     system_prompt = _build_system_prompt(data_context, req.chart_type, req.history)
 
     async def event_stream() -> AsyncIterator[bytes]:
-        full_text = ""
+        last_code: str = ""
+        last_error: str = ""
 
-        # 1. Thinking indicator
         yield _sse("thinking", {"text": "AI 正在分析資料結構..."}).encode()
         await asyncio.sleep(0)
 
-        # 2. Stream AI response (code + explanation)
-        yield _sse("thinking", {"text": "生成 Python 轉換代碼中..."}).encode()
-        try:
-            async for chunk in _call_gemini_stream(req.prompt, system_prompt, api_key):
-                full_text += chunk
-                yield _sse("token", {"text": chunk}).encode()
-        except Exception as e:
-            yield _sse("error", {"message": str(e)}).encode()
-            return
+        for attempt in range(MAX_RETRIES):
+            is_retry = attempt > 0
 
-        # 3. Extract and run code
-        code = _extract_code(full_text)
-        if not code:
-            yield _sse("error", {"message": "AI 未生成可執行的 Python 代碼，請重試。"}).encode()
-            return
-
-        yield _sse("executing", {"text": "執行代碼中...", "code": code}).encode()
-        await asyncio.sleep(0)
-
-        try:
-            stdout, stderr = await asyncio.to_thread(_run_sandbox, code, 30)
-        except subprocess.TimeoutExpired:
-            yield _sse("error", {"message": "代碼執行逾時（30 秒），請簡化需求或聯繫管理員。"}).encode()
-            return
-        except Exception as e:
-            yield _sse("error", {"message": f"沙盒錯誤: {e}"}).encode()
-            return
-
-        if stderr and not stdout:
-            yield _sse("error", {"message": f"代碼執行失敗:\n{stderr}"}).encode()
-            return
-
-        # 4. Parse Highcharts JSON from stdout
-        try:
-            chart_config = json.loads(stdout.strip())
-        except json.JSONDecodeError:
-            # Try to extract JSON object from stdout
-            match = re.search(r"\{.*\}", stdout, re.DOTALL)
-            if match:
-                try:
-                    chart_config = json.loads(match.group(0))
-                except json.JSONDecodeError:
-                    yield _sse("error", {"message": f"代碼輸出無法解析為 JSON:\n{stdout[:500]}"}).encode()
-                    return
+            # ── Build prompt ────────────────────────────────────────────────
+            if not is_retry:
+                user_msg = req.prompt
+                yield _sse("thinking", {"text": "生成 Python 轉換代碼中..."}).encode()
             else:
-                yield _sse("error", {"message": f"代碼未輸出有效 JSON:\n{stdout[:500]}"}).encode()
+                yield _sse("retrying", {
+                    "text": f"代碼執行失敗，第 {attempt} 次自動修正中...",
+                    "attempt": attempt,
+                    "error": last_error,
+                }).encode()
+                await asyncio.sleep(0)
+                user_msg = (
+                    f"原始需求：{req.prompt}\n\n"
+                    f"你上一版的代碼執行失敗了：\n```python\n{last_code}\n```\n\n"
+                    f"錯誤訊息：\n{last_error}\n\n"
+                    f"請分析錯誤原因並修正代碼。"
+                )
+
+            # ── Stream LLM response ─────────────────────────────────────────
+            full_text = ""
+            try:
+                async for chunk in _call_gemini_stream(user_msg, system_prompt, api_key):
+                    full_text += chunk
+                    yield _sse("token", {"text": chunk}).encode()
+            except Exception as e:
+                yield _sse("error", {"message": str(e)}).encode()
                 return
 
-        yield _sse("chart", {"config": chart_config, "code": code}).encode()
+            # ── Extract code block ──────────────────────────────────────────
+            code = _extract_code(full_text)
+            if not code:
+                last_code = ""
+                last_error = "AI 未生成可執行的 Python 代碼"
+                continue
 
-        # 5. Extract explanation text (everything outside code blocks)
-        explanation = re.sub(r"```python.*?```", "", full_text, flags=re.DOTALL).strip()
-        if explanation:
-            yield _sse("message", {"text": explanation}).encode()
+            # ── AST safety check ────────────────────────────────────────────
+            is_safe, reason = _validate_code_ast(code)
+            if not is_safe:
+                last_code = code
+                last_error = f"代碼包含不允許的操作：{reason}"
+                continue
 
-        yield _sse("done", {}).encode()
+            # ── Sandbox execution ───────────────────────────────────────────
+            yield _sse("executing", {"text": "執行代碼中...", "code": code}).encode()
+            await asyncio.sleep(0)
+
+            try:
+                stdout, stderr = await asyncio.to_thread(_run_sandbox, code, SANDBOX_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                last_code = code
+                last_error = f"代碼執行逾時（{SANDBOX_TIMEOUT} 秒）"
+                continue
+            except Exception as e:
+                yield _sse("error", {"message": f"沙盒錯誤: {e}"}).encode()
+                return
+
+            if stderr and not stdout:
+                last_code = code
+                last_error = stderr
+                continue
+
+            # ── Parse Highcharts JSON ───────────────────────────────────────
+            chart_config = None
+            try:
+                chart_config = json.loads(stdout.strip())
+            except json.JSONDecodeError:
+                match = re.search(r"\{.*\}", stdout, re.DOTALL)
+                if match:
+                    try:
+                        chart_config = json.loads(match.group(0))
+                    except json.JSONDecodeError:
+                        pass
+            if chart_config is None:
+                last_code = code
+                last_error = f"代碼未輸出有效 JSON:\n{stdout[:300]}"
+                continue
+
+            # ── Success ─────────────────────────────────────────────────────
+            yield _sse("chart", {"config": chart_config, "code": code}).encode()
+            explanation = re.sub(r"```python.*?```", "", full_text, flags=re.DOTALL).strip()
+            if explanation:
+                yield _sse("message", {"text": explanation}).encode()
+            yield _sse("done", {}).encode()
+            return
+
+        # All retries exhausted
+        yield _sse("error", {
+            "message": f"自動修正失敗（已重試 {MAX_RETRIES} 次）\n最後錯誤：{last_error}"
+        }).encode()
 
     return StreamingResponse(
         event_stream(),
@@ -357,5 +437,6 @@ async def v2_generate(req: GenerateRequest):
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
+            "Access-Control-Allow-Origin": "*",
         },
     )

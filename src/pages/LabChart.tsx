@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
-  ArrowLeft, Upload, Send, Square, Trash2, Clock,
+  ArrowLeft, Send, Square, Trash2, Clock,
   ChevronDown, ChevronUp, Copy, Check, FileSpreadsheet,
-  Edit, Zap, FlaskConical,
+  Edit, Zap, FlaskConical, Settings,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import FileUpload from "@/components/FileUpload";
 import DataPreview from "@/components/DataPreview";
 import ChartGallery from "@/components/ChartGallery";
 import ChartDisplay from "@/components/ChartDisplay";
+import SettingsPanel from "@/components/SettingsPanel";
 import { useToast } from "@/hooks/use-toast";
 import { generateChartSuggestion } from "@/services/gemini";
 import { getBackendUrl } from "@/services/apiClient";
@@ -72,15 +73,50 @@ function HistorySidebar({
 }
 
 // ── Conversation turn bubble ──────────────────────────────────────────────────
-function TurnBubble({ turn, onChartChange }: { turn: Turn; onChartChange: (c: object) => void }) {
+const TurnBubble = React.memo(function TurnBubble({ turn, idx, onChartChange }: {
+  turn: Turn;
+  idx: number;
+  onChartChange: (c: object, idx: number) => void;
+}) {
   const [showCode, setShowCode] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedJson, setCopiedJson] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState(() =>
+    turn.chartConfig ? JSON.stringify(turn.chartConfig, null, 2) : ""
+  );
+  const { toast } = useToast();
 
-  const copyCode = () => {
+  // Keep JSON editor in sync when chart config is updated (e.g. by streaming)
+  useEffect(() => {
+    if (turn.chartConfig) {
+      setGeneratedCode(JSON.stringify(turn.chartConfig, null, 2));
+    }
+  }, [turn.chartConfig]);
+
+  const copyPythonCode = () => {
     if (!turn.code) return;
     navigator.clipboard.writeText(turn.code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const copyJsonCode = () => {
+    navigator.clipboard.writeText(generatedCode).then(() => {
+      toast({ title: "已複製", description: "圖表配置代碼已複製到剪貼簿" });
+      setCopiedJson(true);
+      setTimeout(() => setCopiedJson(false), 2000);
+    });
+  };
+
+  const applyCodeChanges = () => {
+    try {
+      const parsed = JSON.parse(generatedCode);
+      onChartChange(parsed, idx);
+      toast({ title: "代碼已應用", description: "圖表已更新為新的配置" });
+    } catch {
+      toast({ title: "JSON 格式錯誤", description: "請檢查代碼格式是否正確", variant: "destructive" });
+    }
   };
 
   if (turn.role === "user") {
@@ -95,32 +131,98 @@ function TurnBubble({ turn, onChartChange }: { turn: Turn; onChartChange: (c: ob
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Streaming text */}
       {turn.status === "streaming" && (
         <div className="bg-white border rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap max-h-48 overflow-auto">
           {turn.streamingText || <span className="text-gray-400 animate-pulse">AI 分析中...</span>}
         </div>
       )}
+      {/* Executing indicator */}
       {turn.status === "executing" && (
         <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2">
           <div className="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
           執行 Python 代碼，讀取完整資料中...
         </div>
       )}
+      {/* Retrying indicator */}
+      {turn.status === "retrying" && (
+        <div className="flex items-center gap-2 text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded-xl px-4 py-2">
+          <div className="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+          代碼執行失敗，AI 自動修正中（第 {turn.retryAttempt} 次）...
+        </div>
+      )}
+      {/* Error */}
       {turn.status === "error" && (
         <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
           ❌ {turn.errorMessage}
         </div>
       )}
+
+      {/* Chart + manual adjustment panel (mirrors ChartResultCard) */}
       {turn.chartConfig && (
-        <div className="border rounded-xl p-3 bg-white">
-          <ChartDisplay chartOptions={turn.chartConfig} isLoading={false} setChartOptions={onChartChange} />
-        </div>
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span className="text-base font-semibold text-gray-800">生成的圖表</span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setShowSettings(v => !v)}>
+                  <Settings className="h-4 w-4 mr-1" />設定
+                </Button>
+                <Button variant="outline" size="sm" onClick={copyJsonCode}>
+                  {copiedJson ? <Check className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
+                  複製代碼
+                </Button>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Chart */}
+            <div className="border rounded-lg p-4 bg-white">
+              <ChartDisplay chartOptions={turn.chartConfig} isLoading={false} setChartOptions={c => onChartChange(c, idx)} />
+            </div>
+
+            {/* Settings panel */}
+            {showSettings && (
+              <div className="border rounded-lg p-4">
+                <SettingsPanel
+                  chartOptions={turn.chartConfig}
+                  onOptionsChange={(newOpts) => {
+                    onChartChange(newOpts, idx);
+                    setGeneratedCode(JSON.stringify(newOpts, null, 2));
+                  }}
+                  databaseData={null}
+                  onDateChange={() => {}}
+                />
+              </div>
+            )}
+
+            {/* JSON editor */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>圖表配置代碼（可編輯）</Label>
+                <Button onClick={applyCodeChanges} size="sm" variant="outline" className="h-8">
+                  <Check className="h-4 w-4 mr-1" />應用變更
+                </Button>
+              </div>
+              <textarea
+                value={generatedCode}
+                onChange={e => setGeneratedCode(e.target.value)}
+                className="w-full h-48 p-4 text-sm font-mono bg-gray-800 text-white rounded border border-gray-700 focus:border-blue-500 focus:outline-none resize-none overflow-auto"
+                spellCheck={false}
+              />
+            </div>
+          </CardContent>
+        </Card>
       )}
+
+      {/* AI message */}
       {turn.prompt && turn.status === "done" && (
         <div className="bg-gray-50 border rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-gray-700">
           {turn.prompt}
         </div>
       )}
+
+      {/* Python code (collapsible) */}
       {turn.code && (
         <div className="border rounded-xl overflow-hidden text-sm">
           <button
@@ -135,9 +237,9 @@ function TurnBubble({ turn, onChartChange }: { turn: Turn; onChartChange: (c: ob
               <pre className="bg-gray-900 text-green-300 text-xs p-4 overflow-auto max-h-64">{turn.code}</pre>
               <button
                 className="absolute top-2 right-2 p-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-300"
-                onClick={copyCode}
+                onClick={copyPythonCode}
               >
-                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copiedCode ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
               </button>
             </div>
           )}
@@ -145,7 +247,7 @@ function TurnBubble({ turn, onChartChange }: { turn: Turn; onChartChange: (c: ob
       )}
     </div>
   );
-}
+});
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 const LabChart = () => {
@@ -174,7 +276,7 @@ const LabChart = () => {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [turns]);
+  }, [turns.length]); // only scroll when a new turn is added, not on edits
 
   // Auto-save to history when a chart is produced
   useEffect(() => {
@@ -348,7 +450,7 @@ const LabChart = () => {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+        <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6">
 
           {/* ── No file yet: upload zone ── */}
           {!fileData && !session && (
@@ -500,7 +602,7 @@ const LabChart = () => {
 
           {/* ── Conversation phase (after first generation) ── */}
           {hasGeneratedOnce && (
-            <div className="max-w-3xl mx-auto w-full space-y-4">
+            <div className="max-w-6xl mx-auto w-full space-y-4">
               {/* Compact file bar */}
               {session && (
                 <div className="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-xl px-4 py-2 text-sm">
@@ -527,7 +629,7 @@ const LabChart = () => {
               </div>
               {/* Turns */}
               {turns.map((turn, i) => (
-                <TurnBubble key={i} turn={turn} onChartChange={c => handleChartChange(c, i)} />
+                <TurnBubble key={i} turn={turn} idx={i} onChartChange={handleChartChange} />
               ))}
             </div>
           )}
@@ -537,8 +639,8 @@ const LabChart = () => {
 
         {/* ── Input bar (only in conversation phase) ── */}
         {hasGeneratedOnce && (
-          <div className="bg-white border-t px-6 py-4">
-            <div className="flex gap-3 items-end max-w-3xl mx-auto">
+          <div className="bg-white border-t px-4 md:px-8 py-4">
+            <div className="flex gap-3 items-end max-w-6xl mx-auto w-full">
               <Textarea
                 value={prompt}
                 onChange={e => setPrompt(e.target.value)}

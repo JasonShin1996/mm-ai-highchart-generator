@@ -6,6 +6,7 @@ export type SseEvent =
   | { type: "thinking"; text: string }
   | { type: "token"; text: string }
   | { type: "executing"; text: string; code: string }
+  | { type: "retrying"; text: string; attempt: number; error: string }
   | { type: "chart"; config: object; code: string }
   | { type: "message"; text: string }
   | { type: "error"; message: string }
@@ -17,7 +18,8 @@ export interface Turn {
   code?: string;
   chartConfig?: object;
   streamingText?: string;
-  status?: "streaming" | "executing" | "done" | "error";
+  status?: "streaming" | "executing" | "retrying" | "done" | "error";
+  retryAttempt?: number;
   errorMessage?: string;
 }
 
@@ -118,6 +120,14 @@ export function useV2Generation() {
               break;
             case "executing":
               updateLastAssistantTurn(t => ({ ...t, status: "executing", code: ev.code }));
+              break;
+            case "retrying":
+              updateLastAssistantTurn(t => ({
+                ...t,
+                status: "retrying",
+                retryAttempt: ev.attempt,
+                streamingText: "",  // clear previous token stream for new attempt
+              }));
               break;
             case "chart": {
               const rawConfig = ev.config as object;
