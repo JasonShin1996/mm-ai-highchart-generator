@@ -1,5 +1,5 @@
 import React from 'react';
-import { Upload, Database, ArrowRight, GitBranch } from 'lucide-react';
+import { Upload, Database, ArrowRight, GitBranch, FlaskConical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
@@ -24,6 +24,30 @@ const Index = () => {
           選擇您的數據源，用自然語言描述，讓 AI 為您生成互動式圖表
         </p>
       </header>
+
+      {/* Lab entry */}
+      <div className="mb-6">
+        <Card
+          className="border-2 border-dashed border-purple-300 bg-purple-50 hover:bg-purple-100 hover:border-purple-400 transition-all cursor-pointer"
+          onClick={() => navigate('/lab')}
+        >
+          <CardContent className="flex items-center justify-between py-4 px-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <FlaskConical className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-purple-900 text-sm">AI Lab</span>
+                  <span className="text-xs bg-purple-200 text-purple-700 px-2 py-0.5 rounded-full font-medium">Beta</span>
+                </div>
+                <p className="text-xs text-purple-600 mt-0.5">新架構：AI 寫代碼讀完整資料 · 串流生成 · 多輪對話修改</p>
+              </div>
+            </div>
+            <ArrowRight className="h-4 w-4 text-purple-400" />
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid md:grid-cols-3 gap-8">
         {/* 本地檔案上傳選項 */}

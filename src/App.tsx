@@ -5,6 +5,7 @@ import Index from "./pages/Index";
 import LocalFileChart from "./pages/LocalFileChart";
 import DatabaseChart from "./pages/DatabaseChart";
 import DataFusion from "./pages/DataFusion";
+import LabChart from "./pages/LabChart";
 import NotFound from "./pages/NotFound";
 
 const App = () => (
@@ -16,6 +17,7 @@ const App = () => (
         <Route path="/local-file" element={<LocalFileChart />} />
         <Route path="/database" element={<DatabaseChart />} />
         <Route path="/fusion" element={<DataFusion />} />
+        <Route path="/lab" element={<LabChart />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>
