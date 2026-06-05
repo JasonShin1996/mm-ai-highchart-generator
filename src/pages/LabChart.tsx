@@ -1,165 +1,36 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowLeft, Upload, Send, Square, Trash2, Clock, ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
+import {
+  ArrowLeft, Upload, Send, Square, Trash2, Clock,
+  ChevronDown, ChevronUp, Copy, Check, FileSpreadsheet,
+  Edit, Zap, FlaskConical,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
-import ChartDisplay from "@/components/ChartDisplay";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import FileUpload from "@/components/FileUpload";
+import DataPreview from "@/components/DataPreview";
 import ChartGallery from "@/components/ChartGallery";
+import ChartDisplay from "@/components/ChartDisplay";
 import { useToast } from "@/hooks/use-toast";
+import { generateChartSuggestion } from "@/services/gemini";
 import { getBackendUrl } from "@/services/apiClient";
+import { analyzeDataAndRecommendCharts, getChartTypeName } from "@/utils/chartAnalysis";
 import { useV2Generation, Turn } from "@/hooks/useV2Generation";
 import { loadHistory, saveSession, deleteSession, HistorySession } from "@/lib/history";
 
-// ── Upload section ────────────────────────────────────────────────────────────
-interface UploadedFile {
+// ── Types ─────────────────────────────────────────────────────────────────────
+interface UploadedSession {
   sessionId: string;
   filename: string;
   rowCount: number;
-  columns: { name: string; dtype: string }[];
-}
-
-function UploadZone({ onUploaded }: { onUploaded: (f: UploadedFile) => void }) {
-  const [dragging, setDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
-
-  const upload = useCallback(async (file: File) => {
-    setUploading(true);
-    const fd = new FormData();
-    fd.append("file", file);
-    try {
-      const res = await fetch(`${getBackendUrl()}/api/v2/upload`, { method: "POST", body: fd });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail ?? "Upload failed");
-      }
-      const data = await res.json();
-      onUploaded({ sessionId: data.session_id, filename: data.filename, rowCount: data.row_count, columns: data.columns });
-    } catch (e: unknown) {
-      toast({ title: "上傳失敗", description: (e as Error).message, variant: "destructive" });
-    } finally {
-      setUploading(false);
-    }
-  }, [onUploaded, toast]);
-
-  return (
-    <div
-      className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer
-        ${dragging ? "border-blue-400 bg-blue-50" : "border-gray-300 hover:border-blue-300 hover:bg-gray-50"}`}
-      onClick={() => inputRef.current?.click()}
-      onDragOver={e => { e.preventDefault(); setDragging(true); }}
-      onDragLeave={() => setDragging(false)}
-      onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) upload(f); }}
-    >
-      <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); }} />
-      <Upload className="mx-auto h-8 w-8 text-gray-400 mb-3" />
-      {uploading
-        ? <p className="text-sm text-blue-600 font-medium">上傳解析中...</p>
-        : <><p className="text-sm font-medium text-gray-700">拖放或點擊上傳 CSV / Excel</p><p className="text-xs text-gray-400 mt-1">支援 .csv / .xlsx / .xls</p></>
-      }
-    </div>
-  );
-}
-
-// ── Single conversation turn ──────────────────────────────────────────────────
-function TurnBubble({ turn, onChartChange }: { turn: Turn; onChartChange: (config: object) => void }) {
-  const [showCode, setShowCode] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const copyCode = () => {
-    if (turn.code) {
-      navigator.clipboard.writeText(turn.code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  if (turn.role === "user") {
-    return (
-      <div className="flex justify-end">
-        <div className="max-w-[75%] bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm">
-          {turn.prompt}
-        </div>
-      </div>
-    );
-  }
-
-  // Assistant turn
-  return (
-    <div className="flex flex-col gap-3">
-      {/* Status / streaming text */}
-      {turn.status === "streaming" && (
-        <div className="bg-white border rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap">
-          {turn.streamingText || <span className="text-gray-400 animate-pulse">AI 思考中...</span>}
-        </div>
-      )}
-
-      {turn.status === "executing" && (
-        <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2">
-          <div className="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
-          執行代碼中...
-        </div>
-      )}
-
-      {turn.status === "error" && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
-          ❌ {turn.errorMessage}
-        </div>
-      )}
-
-      {/* Chart */}
-      {turn.chartConfig && (
-        <div className="border rounded-xl p-3 bg-white">
-          <ChartDisplay
-            chartOptions={turn.chartConfig}
-            isLoading={false}
-            setChartOptions={onChartChange}
-          />
-        </div>
-      )}
-
-      {/* AI explanation */}
-      {turn.prompt && turn.status === "done" && (
-        <div className="bg-gray-50 border rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-gray-700">
-          {turn.prompt}
-        </div>
-      )}
-
-      {/* Code toggle */}
-      {turn.code && (
-        <div className="border rounded-xl overflow-hidden text-sm">
-          <button
-            className="w-full flex items-center justify-between px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium"
-            onClick={() => setShowCode(v => !v)}
-          >
-            <span>查看 Python 代碼</span>
-            {showCode ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          </button>
-          {showCode && (
-            <div className="relative">
-              <pre className="bg-gray-900 text-green-300 text-xs p-4 overflow-auto max-h-64">{turn.code}</pre>
-              <button
-                className="absolute top-2 right-2 p-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-300"
-                onClick={copyCode}
-              >
-                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ── History sidebar ───────────────────────────────────────────────────────────
 function HistorySidebar({
-  sessions,
-  activeId,
-  onSelect,
-  onDelete,
+  sessions, activeId, onSelect, onDelete,
 }: {
   sessions: HistorySession[];
   activeId?: string;
@@ -168,11 +39,8 @@ function HistorySidebar({
 }) {
   return (
     <div className="flex flex-col h-full">
-      <div className="px-4 py-3 border-b">
-        <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-          <Clock className="h-4 w-4" />
-          歷史紀錄
-        </div>
+      <div className="px-4 py-3 border-b flex items-center gap-2 text-sm font-semibold text-gray-700">
+        <Clock className="h-4 w-4" />歷史紀錄
       </div>
       <div className="flex-1 overflow-y-auto">
         {sessions.length === 0 && (
@@ -203,35 +71,121 @@ function HistorySidebar({
   );
 }
 
+// ── Conversation turn bubble ──────────────────────────────────────────────────
+function TurnBubble({ turn, onChartChange }: { turn: Turn; onChartChange: (c: object) => void }) {
+  const [showCode, setShowCode] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copyCode = () => {
+    if (!turn.code) return;
+    navigator.clipboard.writeText(turn.code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (turn.role === "user") {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[75%] bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 text-sm">
+          {turn.prompt}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {turn.status === "streaming" && (
+        <div className="bg-white border rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap max-h-48 overflow-auto">
+          {turn.streamingText || <span className="text-gray-400 animate-pulse">AI 分析中...</span>}
+        </div>
+      )}
+      {turn.status === "executing" && (
+        <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2">
+          <div className="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+          執行 Python 代碼，讀取完整資料中...
+        </div>
+      )}
+      {turn.status === "error" && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+          ❌ {turn.errorMessage}
+        </div>
+      )}
+      {turn.chartConfig && (
+        <div className="border rounded-xl p-3 bg-white">
+          <ChartDisplay chartOptions={turn.chartConfig} isLoading={false} setChartOptions={onChartChange} />
+        </div>
+      )}
+      {turn.prompt && turn.status === "done" && (
+        <div className="bg-gray-50 border rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-gray-700">
+          {turn.prompt}
+        </div>
+      )}
+      {turn.code && (
+        <div className="border rounded-xl overflow-hidden text-sm">
+          <button
+            className="w-full flex items-center justify-between px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium"
+            onClick={() => setShowCode(v => !v)}
+          >
+            <span>查看 Python 代碼</span>
+            {showCode ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+          {showCode && (
+            <div className="relative">
+              <pre className="bg-gray-900 text-green-300 text-xs p-4 overflow-auto max-h-64">{turn.code}</pre>
+              <button
+                className="absolute top-2 right-2 p-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-300"
+                onClick={copyCode}
+              >
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 const LabChart = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { turns, setTurns, isGenerating, generate, abort, reset } = useV2Generation();
 
-  const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
-  const [selectedChartType, setSelectedChartType] = useState<string | null>("line");
+  // File / session state
+  const [fileData, setFileData] = useState<any>(null);           // parsed by FileUpload (PapaParse)
+  const [session, setSession] = useState<UploadedSession | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Setup-phase state (before first generation)
   const [prompt, setPrompt] = useState("");
+  const [isSuggestionLoading, setIsSuggestionLoading] = useState(false);
+  const [selectedChartType, setSelectedChartType] = useState<string | null>(null);
+  const [recommendedChartTypes, setRecommendedChartTypes] = useState<string[]>([]);
+  const [showDataPreview, setShowDataPreview] = useState(false);
+
+  // History
   const [sessions, setSessions] = useState<HistorySession[]>(() => loadHistory());
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
-  const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll on new turns
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const hasGeneratedOnce = turns.length > 0;
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [turns]);
 
-  // Save session to history when a chart is produced
+  // Auto-save to history when a chart is produced
   useEffect(() => {
-    if (!uploadedFile || turns.length < 2) return;
-    const lastAssistant = [...turns].reverse().find(t => t.role === "assistant" && t.status === "done" && t.chartConfig);
-    if (!lastAssistant) return;
-
-    const firstUserPrompt = turns.find(t => t.role === "user")?.prompt ?? "未命名";
-    const session: HistorySession = {
-      id: uploadedFile.sessionId,
-      title: firstUserPrompt.slice(0, 40),
-      filename: uploadedFile.filename,
+    if (!session || turns.length < 2) return;
+    const lastDone = [...turns].reverse().find(t => t.role === "assistant" && t.status === "done" && t.chartConfig);
+    if (!lastDone) return;
+    const firstPrompt = turns.find(t => t.role === "user")?.prompt ?? "未命名";
+    const histSession: HistorySession = {
+      id: session.sessionId,
+      title: firstPrompt.slice(0, 40),
+      filename: session.filename,
       createdAt: Date.now(),
       turns: turns.map(t => ({
         role: t.role,
@@ -240,34 +194,104 @@ const LabChart = () => {
         chartConfig: t.chartConfig ? JSON.stringify(t.chartConfig) : undefined,
       })),
     };
-    saveSession(session);
+    saveSession(histSession);
     setSessions(loadHistory());
-    setActiveSessionId(uploadedFile.sessionId);
-  }, [turns, uploadedFile]);
+    setActiveSessionId(session.sessionId);
+  }, [turns, session]);
 
-  const handleSend = async () => {
-    if (!uploadedFile) { toast({ title: "請先上傳資料檔案", variant: "destructive" }); return; }
+  // ── Upload: FileUpload component parses locally, then we also upload to backend
+  const handleFileUpload = useCallback(async (data: any) => {
+    if (!data?.data?.length) return;
+
+    setFileData(data);
+    setPrompt("");
+    setSelectedChartType(null);
+    setRecommendedChartTypes([]);
+
+    // 1. Recommend chart types from local parse (fast, no server needed)
+    const recommendations = analyzeDataAndRecommendCharts(data);
+    setRecommendedChartTypes(recommendations);
+    if (recommendations.length > 0) setSelectedChartType(recommendations[0]);
+
+    // 2. Upload to backend v2 session
+    setIsUploading(true);
+    try {
+      // Re-read the raw file from FileUpload's File object
+      // FileUpload stores the file ref; we re-fetch from input
+      // Instead, convert parsed data back to CSV for upload
+      // Better: trigger a hidden file input OR use the original File object
+      // FileUpload passes `data` which has data.file (the original File object)
+      const file: File | undefined = data.file;
+      if (file) {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch(`${getBackendUrl()}/api/v2/upload`, { method: "POST", body: fd });
+        if (res.ok) {
+          const resp = await res.json();
+          setSession({ sessionId: resp.session_id, filename: resp.filename, rowCount: resp.row_count });
+        } else {
+          // Non-fatal: fall back to client-side only mode isn't supported, warn user
+          toast({ title: "後端上傳失敗", description: "請確認後端服務正在執行", variant: "destructive" });
+        }
+      }
+    } finally {
+      setIsUploading(false);
+    }
+
+    // 3. AI auto-suggestion (same as existing pages)
+    setIsSuggestionLoading(true);
+    const optimized = data.data.slice(0, 5);
+    generateChartSuggestion(data.meta.fields, optimized)
+      .then(suggestion => {
+        setPrompt(suggestion.description);
+        if (suggestion.recommended_chart_type && recommendations.length === 0) {
+          setSelectedChartType(suggestion.recommended_chart_type);
+        }
+        toast({ title: "AI 分析完成", description: "已根據您的數據生成圖表建議" });
+      })
+      .catch(() => {
+        toast({ title: "AI 分析失敗", description: "請手動描述想要的圖表", variant: "destructive" });
+      })
+      .finally(() => setIsSuggestionLoading(false));
+  }, [toast]);
+
+  // ── First generation (setup phase → conversation phase)
+  const handleFirstGenerate = async () => {
+    if (!session) { toast({ title: "請等待檔案上傳完成", variant: "destructive" }); return; }
     if (!selectedChartType) { toast({ title: "請選擇圖表類型", variant: "destructive" }); return; }
     if (!prompt.trim()) return;
     const p = prompt.trim();
     setPrompt("");
-    await generate(uploadedFile.sessionId, p, selectedChartType);
+    await generate(session.sessionId, p, selectedChartType);
+  };
+
+  // ── Follow-up turns (conversation phase)
+  const handleFollowUp = async () => {
+    if (!session || !prompt.trim()) return;
+    const p = prompt.trim();
+    const ct = selectedChartType ?? "line";
+    setPrompt("");
+    await generate(session.sessionId, p, ct);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSend();
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      hasGeneratedOnce ? handleFollowUp() : handleFirstGenerate();
+    }
   };
 
+  // ── Restore history session
   const handleRestoreSession = (s: HistorySession) => {
     reset();
+    setFileData(null);
+    setSession({ sessionId: s.id, filename: s.filename, rowCount: 0 });
     setActiveSessionId(s.id);
-    setUploadedFile({ sessionId: s.id, filename: s.filename, rowCount: 0, columns: [] });
     setTurns(s.turns.map(t => ({
       role: t.role,
       prompt: t.prompt,
       code: t.code,
       chartConfig: t.chartConfig ? JSON.parse(t.chartConfig) : undefined,
-      status: "done",
+      status: "done" as const,
     })));
     toast({ title: "已還原歷史對話", description: s.title });
   };
@@ -275,24 +299,28 @@ const LabChart = () => {
   const handleDeleteSession = (id: string) => {
     deleteSession(id);
     setSessions(loadHistory());
-    if (activeSessionId === id) { reset(); setUploadedFile(null); setActiveSessionId(undefined); }
+    if (activeSessionId === id) { reset(); setFileData(null); setSession(null); setActiveSessionId(undefined); }
   };
 
   const handleNewSession = () => {
     reset();
-    setUploadedFile(null);
+    setFileData(null);
+    setSession(null);
     setActiveSessionId(undefined);
     setPrompt("");
+    setSelectedChartType(null);
+    setRecommendedChartTypes([]);
   };
 
-  const handleChartChange = useCallback((config: object, turnIndex: number) => {
+  const handleChartChange = useCallback((config: object, idx: number) => {
     setTurns(prev => {
       const next = [...prev];
-      if (next[turnIndex]) next[turnIndex] = { ...next[turnIndex], chartConfig: config };
+      if (next[idx]) next[idx] = { ...next[idx], chartConfig: config };
       return next;
     });
   }, [setTurns]);
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
@@ -301,8 +329,9 @@ const LabChart = () => {
           <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="p-1">
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm font-bold text-gray-800">Lab</span>
-          <span className="ml-auto text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Beta</span>
+          <FlaskConical className="h-4 w-4 text-purple-600" />
+          <span className="text-sm font-bold text-gray-800">AI Lab</span>
+          <span className="ml-auto text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">Beta</span>
         </div>
         <div className="p-2 border-b">
           <Button size="sm" variant="outline" className="w-full text-xs" onClick={handleNewSession}>
@@ -317,89 +346,242 @@ const LabChart = () => {
         />
       </div>
 
-      {/* Main */}
+      {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Chart type selector */}
-        <div className="bg-white border-b px-6 py-2">
-          <ChartGallery
-            onChartTypeSelect={setSelectedChartType}
-            selectedChartType={selectedChartType}
-            recommendedTypes={[]}
-            disabled={isGenerating}
-            onAvailableTypesChange={() => {}}
-          />
-        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
 
-        {/* Conversation area */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          {!uploadedFile ? (
-            <div className="max-w-xl mx-auto mt-16">
-              <h1 className="text-2xl font-bold text-gray-800 mb-2 text-center">AI 圖表生成 Lab</h1>
-              <p className="text-sm text-gray-500 text-center mb-6">上傳資料檔案，用自然語言描述，AI 直接寫 Python 代碼生成圖表</p>
-              <UploadZone onUploaded={f => { setUploadedFile(f); setActiveSessionId(f.sessionId); }} />
+          {/* ── No file yet: upload zone ── */}
+          {!fileData && !session && (
+            <div className="max-w-2xl mx-auto">
+              <div className="text-center mb-6">
+                <h1 className="text-2xl font-bold text-gray-800">AI Lab — 新架構圖表生成</h1>
+                <p className="text-sm text-gray-500 mt-1">AI 直接寫 Python 代碼讀取完整資料，支援串流生成與多輪對話修改</p>
+              </div>
+              <Card className="shadow-lg">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center">
+                    <span className="bg-purple-500 text-white rounded-full h-8 w-8 text-sm flex items-center justify-center mr-3">1</span>
+                    上傳您的數據檔案
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <FileUpload onFileUpload={handleFileUpload} />
+                  {isUploading && (
+                    <div className="mt-3 flex items-center gap-2 text-sm text-purple-600">
+                      <div className="w-3 h-3 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                      上傳至後端 session 中...
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
-          ) : (
-            <>
-              {/* File info bar */}
-              <Card className="bg-green-50 border-green-200">
-                <CardContent className="py-2 px-4 flex items-center justify-between">
-                  <div className="text-sm text-green-800">
-                    <span className="font-medium">{uploadedFile.filename}</span>
-                    <span className="text-green-600 ml-2">· {uploadedFile.rowCount.toLocaleString()} 筆資料 · {uploadedFile.columns.length} 欄</span>
+          )}
+
+          {/* ── File uploaded, setup phase (before first generation) ── */}
+          {(fileData || session) && !hasGeneratedOnce && (
+            <div className="max-w-2xl mx-auto space-y-6">
+
+              {/* File info */}
+              {fileData && (
+                <Card className="shadow-lg">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center">
+                      <span className="bg-purple-500 text-white rounded-full h-8 w-8 text-sm flex items-center justify-center mr-3">1</span>
+                      已載入資料
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-4">
+                      <Button variant="outline" size="sm" onClick={() => setShowDataPreview(true)}>
+                        <Edit className="mr-1 h-4 w-4" />預覽 / 編輯
+                      </Button>
+                      <div className="flex items-center text-sm text-gray-700">
+                        <FileSpreadsheet className="mr-2 h-4 w-4 text-gray-500" />
+                        已載入 {fileData.data.length.toLocaleString()} 行 × {fileData.meta.fields.length} 欄
+                        {session && <span className="ml-2 text-xs text-purple-600">（已上傳至後端）</span>}
+                      </div>
+                    </div>
+                    {isUploading && (
+                      <div className="mt-3 flex items-center gap-2 text-sm text-purple-600">
+                        <div className="w-3 h-3 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                        上傳至後端 session 中...
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Prompt input with AI suggestion */}
+              <Card className="shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <span className="bg-purple-500 text-white rounded-full h-8 w-8 text-sm flex items-center justify-center mr-3">2</span>
+                    描述您想看的圖表
+                    {isSuggestionLoading && (
+                      <div className="ml-3 flex items-center text-sm text-purple-600">
+                        <div className="w-4 h-4 mr-1 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                        AI 分析中...
+                      </div>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {isSuggestionLoading && (
+                    <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-700 flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                      正在分析數據並生成建議...
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label>描述圖表需求</Label>
+                    <Textarea
+                      placeholder="請幫我畫出折線圖，X 軸是日期，Y 軸是 GDP 數值..."
+                      value={prompt}
+                      onChange={e => setPrompt(e.target.value)}
+                      className="min-h-[120px]"
+                      disabled={isGenerating}
+                    />
+                    {prompt && !isSuggestionLoading && (
+                      <p className="text-sm text-green-600 bg-green-50 p-2 rounded">
+                        💡 AI 已根據您的數據生成建議，可直接使用或修改
+                      </p>
+                    )}
                   </div>
-                  <Button size="sm" variant="ghost" className="text-xs text-gray-500" onClick={handleNewSession}>
-                    換檔案
-                  </Button>
                 </CardContent>
               </Card>
 
-              {/* Turns */}
-              {turns.map((turn, i) => (
-                <TurnBubble
-                  key={i}
-                  turn={turn}
-                  onChartChange={config => handleChartChange(config, i)}
-                />
-              ))}
+              {/* Chart type selection + generate button */}
+              {prompt.trim() && (
+                <Card className="shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <span className="bg-purple-500 text-white rounded-full h-8 w-8 text-sm flex items-center justify-center mr-3">3</span>
+                      選擇圖表類型
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {selectedChartType && recommendedChartTypes.length > 0 && (
+                      <div className="space-y-1">
+                        <Label className="text-sm text-gray-600">AI 推薦</Label>
+                        <div className="flex items-center gap-2">
+                          <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-md text-sm font-medium">
+                            {getChartTypeName(selectedChartType)}
+                          </span>
+                          <span className="text-sm text-gray-500">AI 根據數據特性自動選擇</span>
+                        </div>
+                      </div>
+                    )}
+                    <ChartGallery
+                      onChartTypeSelect={setSelectedChartType}
+                      selectedChartType={selectedChartType}
+                      recommendedTypes={recommendedChartTypes}
+                      disabled={isGenerating}
+                      onAvailableTypesChange={() => {}}
+                    />
+                    <div className="flex items-center gap-4 pt-2">
+                      <Button
+                        onClick={handleFirstGenerate}
+                        disabled={isGenerating || !prompt.trim() || !selectedChartType || isUploading}
+                        className="bg-purple-600 hover:bg-purple-700"
+                      >
+                        {isGenerating ? (
+                          <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />生成中...</>
+                        ) : (
+                          <><Zap className="h-4 w-4 mr-2" />AI 生成圖表</>
+                        )}
+                      </Button>
+                      {isUploading && <span className="text-sm text-gray-400">等待後端上傳完成...</span>}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
 
-              {turns.length === 0 && (
-                <div className="text-center text-gray-400 text-sm mt-12">
-                  檔案已就緒，在下方輸入框描述你想要的圖表 👇
+          {/* ── Conversation phase (after first generation) ── */}
+          {hasGeneratedOnce && (
+            <div className="max-w-3xl mx-auto w-full space-y-4">
+              {/* Compact file bar */}
+              {session && (
+                <div className="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-xl px-4 py-2 text-sm">
+                  <div className="flex items-center gap-2 text-purple-800">
+                    <FileSpreadsheet className="h-4 w-4" />
+                    <span className="font-medium">{session.filename}</span>
+                    {session.rowCount > 0 && <span className="text-purple-500">· {session.rowCount.toLocaleString()} 筆</span>}
+                  </div>
+                  <Button size="sm" variant="ghost" className="text-xs text-gray-400 h-6" onClick={handleNewSession}>
+                    換檔案
+                  </Button>
                 </div>
               )}
-            </>
+              {/* Chart type selector (compact) */}
+              <div className="bg-white border rounded-xl px-4 py-3">
+                <Label className="text-xs text-gray-500 mb-2 block">切換圖表類型（下一輪生效）</Label>
+                <ChartGallery
+                  onChartTypeSelect={setSelectedChartType}
+                  selectedChartType={selectedChartType}
+                  recommendedTypes={recommendedChartTypes}
+                  disabled={isGenerating}
+                  onAvailableTypesChange={() => {}}
+                />
+              </div>
+              {/* Turns */}
+              {turns.map((turn, i) => (
+                <TurnBubble key={i} turn={turn} onChartChange={c => handleChartChange(c, i)} />
+              ))}
+            </div>
           )}
+
           <div ref={bottomRef} />
         </div>
 
-        {/* Input bar */}
-        {uploadedFile && (
+        {/* ── Input bar (only in conversation phase) ── */}
+        {hasGeneratedOnce && (
           <div className="bg-white border-t px-6 py-4">
-            <div className="flex gap-3 items-end max-w-4xl mx-auto">
+            <div className="flex gap-3 items-end max-w-3xl mx-auto">
               <Textarea
                 value={prompt}
                 onChange={e => setPrompt(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={turns.length === 0 ? "描述你想要的圖表，例如：幫我畫出 GDP 趨勢折線圖，x 軸是日期..." : "繼續修改，例如：把顏色改成藍色系，加上資料標籤..."}
-                className="flex-1 min-h-[60px] max-h-[120px] resize-none text-sm"
+                placeholder="繼續修改，例如：把顏色改成藍色系、加上資料標籤、換成堆疊柱狀圖..."
+                className="flex-1 min-h-[56px] max-h-[120px] resize-none text-sm"
                 disabled={isGenerating}
               />
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-1 items-center">
                 {isGenerating ? (
-                  <Button size="sm" variant="destructive" onClick={abort} className="w-16">
+                  <Button size="sm" variant="destructive" onClick={abort} className="w-14 h-10">
                     <Square className="h-4 w-4" />
                   </Button>
                 ) : (
-                  <Button size="sm" onClick={handleSend} disabled={!prompt.trim()} className="w-16">
+                  <Button size="sm" onClick={handleFollowUp} disabled={!prompt.trim()} className="w-14 h-10 bg-purple-600 hover:bg-purple-700">
                     <Send className="h-4 w-4" />
                   </Button>
                 )}
-                <p className="text-xs text-gray-400 text-center">⌘↵</p>
+                <span className="text-xs text-gray-300">⌘↵</span>
               </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* Data preview dialog */}
+      {fileData && (
+        <Dialog open={showDataPreview} onOpenChange={setShowDataPreview}>
+          <DialogContent className="max-w-6xl max-h-[80vh] overflow-hidden">
+            <DialogHeader>
+              <DialogTitle className="flex items-center">
+                <FileSpreadsheet className="h-5 w-5 mr-2" />數據預覽與編輯
+              </DialogTitle>
+              <DialogDescription>
+                您可以在此預覽和編輯上傳的數據，修改會即時反映在後續生成中。
+              </DialogDescription>
+            </DialogHeader>
+            <div className="overflow-auto max-h-[60vh]">
+              <DataPreview data={fileData} onDataChange={setFileData} />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };
