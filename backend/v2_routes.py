@@ -174,7 +174,23 @@ def _build_system_prompt(data_context: str, chart_type: str, history: list[Conve
    - 圖例預設在圖表下方（legend.verticalAlign: "bottom"）
    - 不要包含 lang / credits / exporting / subtitle（後端會統一套用主題）
    - series[].data 的格式要符合圖表類型（折線/面積 datetime 用 [timestamp, value]，categories 用純數值陣列）
-4. 如果這是修改請求（history 非空），以上一輪的代碼為基礎修改，保留已有的正確設定。
+4. datetime 轉毫秒時間戳的唯一正確寫法（跨 pandas 版本）：
+   - 必須用：`pd.to_datetime(df['col']).astype('datetime64[ns]').astype('int64') // 10**6`
+   - 原因：pandas 2.0+ 的 to_datetime() 預設回傳 datetime64[us]（微秒），直接 astype('int64') 再 // 10**6 會得到秒而非毫秒
+   - 強制先轉 datetime64[ns]（奈秒）再 // 10**6 才能保證結果是毫秒
+   - 禁止用 // 10**9（得到秒）、禁止用 .view('int64')（pandas Series 不支援）
+   - 1970 年前的日期會產生負數毫秒，Highcharts 可正常渲染
+5. 資料型別與序列化規則：
+   - series[].data 必須用 .tolist() 轉成原生 Python list，不能直接傳 numpy array（否則 json.dumps 會拋 TypeError）
+   - NaN 處理：不可對整個 DataFrame 做 .dropna()（會誤刪其他欄位的有效資料）
+     正確做法是針對各 series 用到的欄位個別處理，例如：
+     `clean = df[['date_col', 'value_col']].dropna()` → 只針對這兩欄去除缺值
+     或保留 NaN 但轉成 None：`df['value'].where(df['value'].notna(), None).tolist()`（Highcharts 會在該點斷線）
+6. 多 Y 軸規則（判斷時機）：
+   - 當多個 series 的數值範圍差異超過 10 倍，或單位明顯不同（例如一個是絕對金額、一個是百分比或成長率）時，主動使用雙 Y 軸
+   - 多軸時 yAxis 必須是 array：`"yAxis": [{{...}}, {{...}}]`，每個 series 加 `"yAxis": 0` 或 `"yAxis": 1`
+   - 禁止多軸時 yAxis 只寫單一 object（Highcharts 會忽略第二軸）
+7. 如果這是修改請求（history 非空），以上一輪的代碼為基礎修改，保留已有的正確設定。
 """
 
 
