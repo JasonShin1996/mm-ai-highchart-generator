@@ -1,5 +1,5 @@
 {
   "build_command": "npm install && npm run build",
   "install_command": "npm install",
-  "start_command": "npx vite preview --host 0.0.0.0 --port $PORT"
+  "start_command": "npx serve -s dist -l $PORT"
 } 
